@@ -61,10 +61,11 @@ const handleBack = () => {
   width: 100%;
   max-width: 500px;
   height: 64px;
+  /* 安卓 fallback：较高透明度 + SVG 噪点模拟磨砂 */
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.97) 0%,
-    rgba(255, 255, 255, 0.88) 100%
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(255, 255, 255, 0.80) 100%
   );
   display: flex;
   justify-content: space-between;
@@ -78,19 +79,19 @@ const handleBack = () => {
   border-bottom-left-radius: 16px;
   border-bottom-right-radius: 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  filter: url(#frosted-glass);
   color: var(--text-color-light, #333);
-  transition: all 0.3s ease;
+  transition: background 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
   box-sizing: border-box;
   animation: headerSlideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* 支持 backdrop-filter 的浏览器：降低透明度 + 真正模糊 */
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .app-header {
     background: linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.92) 0%,
-      rgba(255, 255, 255, 0.72) 100%
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 255, 255, 0.55) 100%
     );
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -111,8 +112,8 @@ const handleBack = () => {
 body.dark-theme .app-header {
   background: linear-gradient(
     180deg,
-    rgba(28, 30, 36, 0.98) 0%,
-    rgba(22, 24, 30, 0.92) 100%
+    rgba(28, 30, 36, 0.94) 0%,
+    rgba(22, 24, 30, 0.84) 100%
   );
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   box-shadow:
@@ -125,8 +126,8 @@ body.dark-theme .app-header {
   body.dark-theme .app-header {
     background: linear-gradient(
       180deg,
-      rgba(28, 30, 36, 0.94) 0%,
-      rgba(22, 24, 30, 0.78) 100%
+      rgba(28, 30, 36, 0.74) 0%,
+      rgba(22, 24, 30, 0.58) 100%
     );
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }

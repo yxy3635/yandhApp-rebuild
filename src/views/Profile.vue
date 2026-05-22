@@ -143,10 +143,12 @@ const editForm = reactive({
 
 onMounted(() => {
   loadProfile();
-  
+
   if (isDarkTheme.value) {
+    document.documentElement.classList.add('dark-theme');
     document.body.classList.add('dark-theme');
   } else {
+    document.documentElement.classList.remove('dark-theme');
     document.body.classList.remove('dark-theme');
   }
 });
@@ -155,8 +157,10 @@ const toggleTheme = () => {
   const newTheme = isDarkTheme.value ? 'dark' : 'light';
   localStorage.setItem('app-theme', newTheme);
   if (newTheme === 'dark') {
+    document.documentElement.classList.add('dark-theme');
     document.body.classList.add('dark-theme');
   } else {
+    document.documentElement.classList.remove('dark-theme');
     document.body.classList.remove('dark-theme');
   }
 };
