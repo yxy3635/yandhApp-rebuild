@@ -1,13 +1,8 @@
 <template>
   <div class="pindou-container">
-    <header class="home-header">
-        <span class="header-back" @click="goBack">
-            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-        </span>
-        <span class="header-title">拼豆图纸</span>
-    </header>
+    <AppHeader title="拼豆图纸" :showBack="true" />
 
-    <div class="container">
+    <div class="container" style="margin-top: 70px;">
         <main>
             <section class="controls">
                 <div class="control-group file-upload">

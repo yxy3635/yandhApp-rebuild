@@ -1,10 +1,8 @@
 <template>
   <div class="profile-container">
-    <header class="profile-header">
-      <span class="profile-title">个人中心</span>
-    </header>
+    <AppHeader title="个人中心" />
     
-    <main class="profile-main page-elastic-fade-in">
+    <main class="profile-main">
       <div class="profile-card">
         <div class="profile-avatar-container">
           <img id="avatar" :src="getAvatarUrl(userInfo.avatar_url)" alt="头像" @click="triggerAvatarUpload">
@@ -114,12 +112,6 @@
       </div>
     </div>
 
-    <nav id="bottom-nav">
-      <button @click="goTo('/home')">主页</button>
-      <button @click="goTo('/interaction')">互动</button>
-      <button @click="goTo('/anniversary')">纪念日</button>
-      <button class="active" @click="goTo('/profile')">我的</button>
-    </nav>
   </div>
 </template>
 
@@ -398,6 +390,10 @@ const goTo = (path) => {
   box-shadow: 0 4px 12px var(--shadow-color, rgba(0,0,0,0.1));
   text-align: center;
   color: var(--text-color-light, #333);
+}
+
+.profile-main{
+  animation: fadeInUp 0.7s;
 }
 
 :global(body.dark-theme) .profile-card {

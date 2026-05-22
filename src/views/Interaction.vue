@@ -1,8 +1,6 @@
 <template>
   <div class="interaction-container">
-    <header class="home-header">
-      <span class="header-main" style="font-size: 20px;">互动列表</span>
-    </header>
+    <AppHeader title="互动列表" />
     
     <main class="interaction-main">
       <div class="interaction-section-title">记录</div>
@@ -60,12 +58,6 @@
       </div>
     </main>
 
-    <nav id="bottom-nav">
-      <button @click="goTo('/home')">主页</button>
-      <button class="active" @click="goTo('/interaction')">互动</button>
-      <button @click="goTo('/anniversary')">纪念日</button>
-      <button @click="goTo('/profile')">我的</button>
-    </nav>
   </div>
 </template>
 

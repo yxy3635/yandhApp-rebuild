@@ -1,13 +1,10 @@
 <template>
   <div class="diary-edit-container">
-    <header class="home-header diary-header">
-      <button id="back-btn" @click="goBack">返回</button>
-      <div class="diary-header-content">
-        <span class="header-main">{{ isEditMode ? '编辑手记' : '写手记' }}</span>
-        <span class="diary-subtitle">记录美好时光</span>
-      </div>
-      <button id="save-btn" @click="saveDiary" :disabled="isSaving">{{ isSaving ? '保存中...' : '保存' }}</button>
-    </header>
+    <AppHeader :title="isEditMode ? '编辑手记' : '写手记'" :showBack="true">
+      <template #actions>
+        <button class="app-header-btn primary" @click="saveDiary" :disabled="isSaving">{{ isSaving ? '保存中...' : '保存' }}</button>
+      </template>
+    </AppHeader>
 
     <main class="diary-main">
       <div class="diary-form">

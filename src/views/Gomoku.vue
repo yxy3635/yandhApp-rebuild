@@ -1,21 +1,14 @@
 <template>
   <div class="gomoku-page-wrapper">
-    <div class="gomoku-header">
-        <button class="gomoku-back" id="gomokuBackBtn" title="返回" @click="goBack">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-            <path d="M14 18L8 11L14 4" stroke="#4f8cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <span class="gomoku-title">在线五子棋</span>
-    </div>
-    <div class="gomoku-main">
+    <AppHeader title="在线五子棋" :showBack="true" :customBack="goBack" />
+    <div class="gomoku-main" style="margin-top: 70px;">
         <div id="gomokuRoomList" class="gomoku-room-list" v-show="!inRoom">
             <div class="gomoku-room-list-header">
                 <span>房间列表</span>
                 <button id="createRoomBtn" class="gomoku-join-btn" @click="createRoom">+ 创建房间</button>
             </div>
             <div id="roomListContainer" class="room-list-container">
-                <div v-if="loadingRooms" class="gomoku-empty loading">加载中...</div>
+                <LoadingSpinner v-if="loadingRooms" text="加载房间..." />
                 <div v-else-if="rooms.length === 0" class="gomoku-empty loading">暂无房间，快来创建吧！</div>
                 <div v-else v-for="room in rooms" :key="room.id" class="gomoku-room-item">
                     <span class="gomoku-room-name">{{ room.ownerName }}的房间</span>

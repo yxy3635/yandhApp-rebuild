@@ -1,11 +1,8 @@
 <template>
   <div class="shoot-container">
-    <header class="gomoku-header">
-      <button id="shootBackBtn" class="gomoku-back" @click="goBack">←</button>
-      <span class="gomoku-title">射履</span>
-    </header>
+    <AppHeader title="射履" :showBack="true" :customBack="goBack" />
 
-    <div id="shootLobby" class="shoot-lobby" v-show="!inRoom">
+    <div id="shootLobby" class="shoot-lobby" v-show="!inRoom" style="margin-top: 70px;">
       <div class="gomoku-room-list">
         <div class="gomoku-room-list-header">
           <span>房间列表</span>
@@ -15,7 +12,7 @@
           </div>
         </div>
         <div id="shootRoomsList">
-            <div v-if="loadingRooms" class="gomoku-empty loading">加载中...</div>
+            <LoadingSpinner v-if="loadingRooms" text="加载房间..." />
             <div v-else-if="rooms.length === 0" class="gomoku-empty loading">暂无房间，快来创建吧！</div>
             <div v-else v-for="room in rooms" :key="room.id" class="gomoku-room-item">
                 <span class="gomoku-room-name">{{ room.room_name }}</span>

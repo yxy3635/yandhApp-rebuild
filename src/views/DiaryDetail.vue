@@ -1,15 +1,9 @@
 <template>
   <div class="diary-detail-container">
-    <header class="home-header diary-header">
-      <button id="back-btn" @click="goBack">返回</button>
-      <div class="diary-header-content">
-        <span class="header-main">手记详情</span>
-      </div>
-      <div style="width: 60px;"></div> <!-- balance -->
-    </header>
+    <AppHeader title="手记详情" :showBack="true" />
 
     <main class="diary-main">
-      <div v-if="loading" style="text-align:center; padding: 40px;">加载中...</div>
+      <LoadingSpinner v-if="loading" text="加载手记详情..." />
       <div v-else-if="!diary" style="text-align:center; padding: 40px;">手记不存在或无法加载</div>
       <div v-else class="diary-detail">
         <div class="diary-header-row">

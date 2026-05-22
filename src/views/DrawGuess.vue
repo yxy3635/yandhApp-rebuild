@@ -1,11 +1,8 @@
 <template>
   <div class="draw-container">
     <div id="drawRoomList" v-show="!inRoom">
-        <header class="gomoku-header">
-            <button id="drawBackBtn" class="gomoku-back" @click="goBack">←</button>
-            <span class="gomoku-title">你画我猜</span>
-        </header>
-        <div class="gomoku-room-list">
+        <AppHeader title="你画我猜" :showBack="true" />
+        <div class="gomoku-room-list" style="margin-top: 70px;">
             <div class="gomoku-room-list-header">
                 <span>房间列表</span>
                 <div style="display:flex;gap:10px;">
@@ -14,7 +11,7 @@
                 </div>
             </div>
             <div id="drawRoomsList">
-                <div v-if="loadingRooms" class="gomoku-empty loading">加载中...</div>
+                <LoadingSpinner v-if="loadingRooms" text="加载房间..." />
                 <div v-else-if="rooms.length === 0" class="gomoku-empty">暂无房间，快来创建吧！</div>
                 <div v-else v-for="room in rooms" :key="room.id" class="gomoku-room-item">
                     <span class="gomoku-room-name">{{ room.room_name }}</span>
@@ -27,13 +24,13 @@
     </div>
 
     <div id="drawGameArea" v-show="inRoom" style="display: flex; flex-direction: column; height: 100vh;">
-        <div class="draw-header">
-            <button id="drawExitBtn" class="draw-back-btn" @click="exitRoom">←</button>
-            <h2 id="drawRoomTitle">序号: {{ currentRoomCode }}</h2>
-            <div class="draw-status" id="drawGameStatus">{{ gameStatusText }}</div>
-        </div>
+        <AppHeader :title="`序号: ${currentRoomCode}`" :showBack="true" :customBack="exitRoom">
+          <template #actions>
+            <div class="draw-status" id="drawGameStatus" style="font-size: 14px; font-weight: normal; color: var(--text-color-medium);">{{ gameStatusText }}</div>
+          </template>
+        </AppHeader>
 
-        <div class="draw-game-info">
+        <div class="draw-game-info" style="margin-top: 70px;">
             <div class="draw-players">
                 <div class="draw-player" :class="{active: isP1Drawing}">
                     <span class="draw-player-name">{{ p1Name }}</span>

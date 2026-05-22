@@ -1,10 +1,6 @@
 <template>
   <div class="chat-container" @click="handleBodyClick">
-    <header class="home-header chat-header">
-      <button id="back-btn" @click="goBack"></button>
-      <img id="chat-peer-avatar" class="chat-peer-avatar" :src="peerAvatarResolved" alt="头像" @error="handleAvatarError">
-      <span id="chat-peer-username">{{ peerUsername }}</span>
-    </header>
+    <AppHeader :title="peerUsername" :showBack="true" />
 
     <main id="chat-list" class="chat-list-main" @scroll="onScroll" ref="chatListRef">
       <div class="chat-top-loader" :class="{ show: isLoadingMore }">

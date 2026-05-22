@@ -1,12 +1,8 @@
 <template>
   <div class="userlist-container">
-    <header class="home-header userlist-header">
-      <button id="back-btn" @click="goBack" class="header-back-btn"></button>
-      <span class="header-main">聊天列表</span>
-      <div style="width: 40px;"></div> <!-- right placeholder for centering -->
-    </header>
+    <AppHeader title="聊天列表" :showBack="true" />
     
-    <div class="userlist-wave-top">
+    <div class="userlist-wave-top" style="margin-top: 64px;">
       <svg viewBox="0 0 500 60" preserveAspectRatio="none" style="width:100%;height:60px;display:block;">
         <path d="M0,30 Q125,60 250,30 T500,30 V60 H0 Z" fill="#e6f0ff" opacity="0.85">
           <animate attributeName="d" dur="4s" repeatCount="indefinite"
@@ -20,7 +16,7 @@
     <main class="userlist-main">
       <div class="userlist-title">用户列表</div>
       
-      <div v-if="loading" class="loading-message">加载中...</div>
+      <LoadingSpinner v-if="loading" text="加载用户列表..." />
       
       <div v-else-if="users.length === 0" class="userlist-empty">
         暂无其他用户
@@ -38,12 +34,6 @@
       </div>
     </main>
 
-    <nav id="bottom-nav">
-      <button @click="goTo('/home')">主页</button>
-      <button class="active" @click="goTo('/interaction')">互动</button>
-      <button @click="goTo('/anniversary')">纪念日</button>
-      <button @click="goTo('/profile')">我的</button>
-    </nav>
   </div>
 </template>
 
@@ -93,16 +83,14 @@ const goBack = () => {
   router.back();
 };
 
-const goTo = (path) => {
-  router.push(path);
-};
 </script>
 
 <style scoped>
 .userlist-container {
   min-height: 100vh;
   background: var(--bg-color-light, #f6f8fa);
-  padding-top: 60px; /* offset for fixed header */
+  padding-top: 60px;
+  padding-bottom: 100px;
 }
 
 .userlist-header {

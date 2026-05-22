@@ -1,11 +1,10 @@
 <template>
   <div class="post-container">
-    <header class="home-header">
-      <button id="back-btn" @click="goBack">返回</button>
-      <img id="user-avatar" class="header-avatar" :src="userAvatar" alt="用户头像">
-      <span>{{ isEditing ? '编辑动态' : '发布动态' }}</span>
-      <button id="submit-btn" @click="submitPost" :disabled="isSubmitting">发布</button>
-    </header>
+    <AppHeader :title="isEditing ? '编辑动态' : '发布动态'" :showBack="true">
+      <template #actions>
+        <button class="app-header-btn primary" @click="submitPost" :disabled="isSubmitting">发布</button>
+      </template>
+    </AppHeader>
     
     <main class="page-bounce-in">
       <div id="upload-progress" v-if="isSubmitting" style="text-align:center; margin-top: 10px; font-size: 14px; color: #555;">

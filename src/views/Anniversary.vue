@@ -1,10 +1,8 @@
 <template>
   <div class="anniversary-container">
-    <header class="home-header">
-      <span>纪念日</span>
-    </header>
+    <AppHeader title="纪念日" />
     
-    <main>
+    <main class="anniversary-main">
       <!-- 主要纪念日卡片 -->
       <div class="anniv-info anniv-fancy">
         <div class="anniv-title">💕 我们已经在一起</div>
@@ -28,7 +26,7 @@
       <div class="public-anniversaries-section">
         <h2>所有纪念日</h2>
         <div id="public-anniversaries-list">
-          <div v-if="loading" style="text-align: center; padding: 20px;">正在加载...</div>
+          <LoadingSpinner v-if="loading" text="正在加载..." />
           <div v-else-if="anniversaries.length === 0" style="text-align: center; padding: 20px;">暂无纪念日数据</div>
           
           <div class="anniv-card" v-for="item in anniversaries" :key="item.id">
@@ -156,12 +154,6 @@
       </div>
     </div>
 
-    <nav id="bottom-nav">
-      <button @click="goTo('/home')">主页</button>
-      <button @click="goTo('/interaction')">互动</button>
-      <button class="active" @click="goTo('/anniversary')">纪念日</button>
-      <button @click="goTo('/profile')">我的</button>
-    </nav>
   </div>
 </template>
 
@@ -622,9 +614,6 @@ const deleteAnniv = async (id) => {
   }
 };
 
-const goTo = (path) => {
-  router.push(path);
-};
 </script>
 
 <style scoped>
@@ -632,6 +621,10 @@ const goTo = (path) => {
   min-height: 100vh;
   padding-top: 70px;
   padding-bottom: 90px;
+}
+
+.anniversary-main{
+  animation: fadeInUp 0.7s;
 }
 
 /* Fancy Header Card */

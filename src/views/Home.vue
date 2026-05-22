@@ -1,16 +1,27 @@
 <template>
-  <div class="home-container">
-    <header class="home-header">
-      <div class="header-title">
-        <span class="header-emoji">🌟</span>
-        <span class="header-main">YandH 小窝</span>
-      </div>
-      <button id="refresh-btn" @click="refreshFeed">刷新动态</button>
-      <button id="post-btn" @click="goPost">发布动态</button>
-    </header>
+  <div class="home-container" @click="closeActionMenu">
+    <AppHeader title="YandH 小窝" emoji="🌟">
+      <template #actions>
+        <div class="action-dropdown-container" @click.stop>
+          <button class="app-header-btn primary icon-only" style="padding: 8px; border-radius: 50%;" @click="showActionMenu = !showActionMenu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+          <div class="action-dropdown" :class="{ 'show': showActionMenu }">
+            <button class="dropdown-item" @click="handleRefresh">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 0 2.13-5.85L21 8"></path></svg>
+              刷新动态
+            </button>
+            <button class="dropdown-item" @click="handlePost">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              发布动态
+            </button>
+          </div>
+        </div>
+      </template>
+    </AppHeader>
     
     <main id="feed-list">
-      <div v-if="loading" class="loading-message">正在加载动态...</div>
+      <LoadingSpinner v-if="loading" text="正在加载动态..." />
       <div v-else-if="feedData.length === 0" class="empty-message">暂无动态</div>
       <template v-else>
         <div class="feed-item" v-for="item in feedData" :key="item.id" @click="goDetail(item.id)">
@@ -39,7 +50,7 @@
       <div id="pagination-controls" class="pagination-controls">
         <div class="pagination-info" v-if="feedData.length > 0">已加载 {{ feedData.length }} 条动态，当前第 {{ currentPage }} 页</div>
         <button class="load-more-btn" v-if="hasMoreData && !loadingMore" @click="loadMoreFeed">加载更多</button>
-        <button class="load-more-btn loading" v-else-if="loadingMore" disabled>加载中...</button>
+        <LoadingSpinner v-else-if="loadingMore" text="加载更多动态..." />
         <div class="no-more-data" v-else-if="feedData.length > 0">没有更多动态了</div>
       </div>
     </main>
@@ -72,13 +83,6 @@
       </div>
     </div>
 
-    <nav id="bottom-nav">
-      <button class="active" @click="goHome">主页</button>
-      <button @click="goInteraction">互动</button>
-      <button @click="goAnniversary">纪念日</button>
-      <button @click="goProfile">我的</button>
-      <button v-if="isAdmin" @click="goAdmin">管理</button>
-    </nav>
   </div>
 </template>
 
@@ -99,6 +103,22 @@ const router = useRouter();
 
 const currentUserId = ref(localStorage.getItem('user_id'));
 const isAdmin = ref(localStorage.getItem('username') === 'admin');
+
+const showActionMenu = ref(false);
+
+const closeActionMenu = () => {
+  showActionMenu.value = false;
+};
+
+const handleRefresh = () => {
+  closeActionMenu();
+  refreshFeed();
+};
+
+const handlePost = () => {
+  closeActionMenu();
+  goPost();
+};
 
 const feedData = ref([]);
 const loading = ref(false);
@@ -315,11 +335,6 @@ const deletePost = async (postId) => {
 const goDetail = (id) => router.push(`/detail?post_id=${id}`);
 const editPost = (id) => router.push(`/post?post_id=${id}`);
 const goPost = () => router.push('/post');
-const goHome = () => router.push('/home');
-const goInteraction = () => router.push('/interaction');
-const goAnniversary = () => router.push('/anniversary');
-const goProfile = () => router.push('/profile');
-const goAdmin = () => router.push('/admin');
 
 const showUserInfo = ref(false);
 const selectedUser = ref(null);
@@ -503,5 +518,70 @@ async function runHomeUnreadPrompts() {
   min-height: 100vh;
   padding-top: 70px;
   padding-bottom: 90px;
+}
+
+.action-dropdown-container {
+  position: relative;
+}
+
+.action-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: var(--bg-color-card, #fff);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
+  pointer-events: none;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform-origin: top right;
+  z-index: 1000;
+  border: 1px solid var(--border-color, rgba(0,0,0,0.05));
+}
+
+.action-dropdown.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+body.dark-theme .action-dropdown {
+  background: var(--bg-color-card, #3a404b);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-color-light, #333);
+  font-size: 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: left;
+}
+
+body.dark-theme .dropdown-item {
+  color: var(--text-color-light, #e0e0e0);
+}
+
+.dropdown-item:hover {
+  background: var(--nav-btn-active-bg, #f0f5ff);
+  color: var(--nav-btn-active-color, #007aff);
+}
+
+body.dark-theme .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #6ea8ff;
 }
 </style>

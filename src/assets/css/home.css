@@ -14,8 +14,9 @@ body:not(.dark-theme) {
   --text-color-medium: #666;
   --border-color: #ddd;
   --shadow-color: rgba(0, 0, 0, 0.08);
-  --nav-bg: #fff;
-  --nav-shadow: rgba(0, 0, 0, 0.10);
+  --nav-bg: rgba(255, 255, 255, 0.65);
+  --nav-bg-fallback: linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.86) 100%);
+  --nav-shadow: rgba(0, 0, 0, 0.08);
   --nav-btn-active-bg: #e6f0ff;
   --nav-btn-active-color: #007aff;
   --header-bg: rgba(255, 255, 255, 0.85); /* 浅色模式半透明 */
@@ -30,8 +31,9 @@ body.dark-theme {
   --text-color-medium: #bbbbbb;
   --border-color: #555;
   --shadow-color: rgba(0, 0, 0, 0.4);
-  --nav-bg: #3a404b;
-  --nav-shadow: rgba(0, 0, 0, 0.6);
+  --nav-bg: rgba(35, 36, 42, 0.65);
+  --nav-bg-fallback: linear-gradient(180deg, rgba(35,36,42,0.94) 0%, rgba(35,36,42,0.86) 100%);
+  --nav-shadow: rgba(0, 0, 0, 0.4);
   --nav-btn-active-bg: #4a4f58;
   --nav-btn-active-color: #00aaff;
   --header-bg: rgba(26, 30, 36, 0.85); /* 深色模式也透明，注意这里颜色值需要与背景匹配 */
@@ -55,38 +57,7 @@ body.dark-theme::before {
   opacity: 0.35 !important;
 }
 
-.home-header {
-  background: var(--header-bg); /* 使用 CSS 变量 */
-  backdrop-filter: blur(10px); /* 磨砂玻璃效果 */
-  -webkit-backdrop-filter: blur(10px);
-  color: var(--text-color-light);
-  padding: 18px 18px 12px 18px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 22px;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  z-index: 20;
-  box-shadow: 0 4px 20px var(--header-shadow); /* 使用变量控制阴影 */
-  border-bottom-left-radius: 24px; /* 更大的圆角 */
-  border-bottom-right-radius: 24px;
-  transition: background 0.3s, box-shadow 0.3s;
-}
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: bold;
-  font-size: 26px;
-  letter-spacing: 1px;
-  color: var(--text-color-light);
-}
-.header-emoji { font-size: 30px; }
-.header-main { font-size: 24px; font-weight: bold; }
+/* Header styles migrated to AppHeader.vue */
 #post-btn {
   background: var(--bg-color-card);
   color: var(--nav-btn-active-color);
@@ -318,16 +289,27 @@ nav {
   transform: translateX(-50%);
   width: 96vw;
   max-width: 500px;
-  background: var(--nav-bg);
+  background: var(--nav-bg-fallback);
+  filter: url(#frosted-glass);
   display: flex;
   border-radius: 24px;
   box-shadow: 0 2px 16px var(--nav-shadow);
-  border-top: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   height: 70px;
   z-index: 30;
   justify-content: space-around;
   align-items: center;
-  transition: background 0.3s, box-shadow 0.3s;
+  transition: background 0.3s, box-shadow 0.3s, border-color 0.3s;
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  nav {
+    background: var(--nav-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    filter: url(#frosted-glass);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
 }
 .nav-indicator {
   position: absolute;
@@ -335,9 +317,10 @@ nav {
   left: 0;
   height: 4px;
   width: 0;
-  background: #7bb6ff;
+  background: linear-gradient(90deg, #7bb6ff, #a78bfa);
   border-radius: 2px;
-  transition: transform 0.3s ease-out;
+  box-shadow: 0 0 8px rgba(123, 182, 255, 0.6), 0 0 2px rgba(167, 139, 250, 0.4);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.2s ease-out;
   z-index: 1;
   pointer-events: none;
   transform-origin: left center;
@@ -369,6 +352,15 @@ nav button.active, nav button:focus {
   background: none;
 }
 nav button:active { background: rgba(123, 182, 255, 0.1); }
+body.dark-theme nav {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  body.dark-theme nav {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+}
 @media (max-width: 500px) {
   body { font-size: 17px; }
   .home-header { font-size: 18px; padding: 12px 8px 8px 8px; }

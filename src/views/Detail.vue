@@ -1,17 +1,14 @@
 <template>
   <div class="detail-container">
-    <header class="home-header">
-      <button id="back-btn" @click="goBack">返回</button>
-      <span>动态详情</span>
-      <div v-if="post && currentUserId === String(post.user_id)">
-        <button id="edit-post-btn" @click="editPost">编辑</button>
-        <button id="delete-post-btn" @click="deletePost">删除</button>
-      </div>
-      <div v-else style="width: 60px;"></div> <!-- Placeholder to balance flex -->
-    </header>
+    <AppHeader title="动态详情" :showBack="true">
+      <template #actions v-if="post && currentUserId === String(post.user_id)">
+        <button class="app-header-btn" @click="editPost">编辑</button>
+        <button class="app-header-btn" style="color: #ff3b30;" @click="deletePost">删除</button>
+      </template>
+    </AppHeader>
 
     <main id="detail-main" class="page-flip-in">
-      <div v-if="loading" style="text-align:center; padding: 40px;">加载中...</div>
+      <LoadingSpinner v-if="loading" text="加载详情..." />
       <div v-else-if="!post" style="text-align:center; padding: 40px;">动态不存在或无法加载</div>
       <template v-else>
         <div class="detail-card">

@@ -1,13 +1,6 @@
 <template>
   <div class="diary-container">
-    <header class="home-header diary-header">
-      <button id="back-btn" @click="goBack">返回</button>
-      <div class="diary-header-content">
-        <span class="header-main">我们的手记</span>
-        <span class="diary-subtitle">记录美好时光</span>
-      </div>
-      <div style="width: 60px;"></div> <!-- balance -->
-    </header>
+    <AppHeader title="我们的手记" :showBack="true" />
 
     <main class="diary-main">
       <div class="diary-stats">
@@ -30,7 +23,7 @@
         <span class="new-diary-text">写手记</span>
       </div>
 
-      <div v-if="loading" class="diary-loading">加载中...</div>
+      <LoadingSpinner v-if="loading" text="加载手记..." />
       <div v-else-if="allDiaries.length === 0" class="diary-empty">
         <div class="empty-icon">📝</div>
         <div class="empty-title">还没有手记</div>
