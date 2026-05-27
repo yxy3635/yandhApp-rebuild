@@ -13,7 +13,7 @@
       <template v-else>
         <div class="detail-card">
           <div class="detail-header">
-            <img class="detail-avatar" :src="getAvatarUrl(post.avatar)" alt="头像">
+            <img class="detail-avatar" :src="getAvatarUrl(post.avatar)" alt="头像" @error="e => e.target.src = defaultAvatar">
             <div class="detail-userinfo">
               <div class="detail-username">{{ post.user }}</div>
               <div class="detail-time">{{ formatTime(post.time) }}</div>
@@ -40,7 +40,7 @@
             <div v-if="comments.length === 0" style="text-align: center; color: #888; padding: 20px;">还在等宝宝发评论呢~</div>
             <template v-else>
               <div class="comment-item" v-for="comment in rootComments" :key="comment.comment_id">
-                <img class="comment-avatar" :src="getAvatarUrl(comment.avatar_url)" alt="头像">
+                <img class="comment-avatar" :src="getAvatarUrl(comment.avatar_url)" alt="头像" @error="e => e.target.src = defaultAvatar">
                 <div class="comment-main-content">
                   <div class="comment-author">{{ comment.user_name || '匿名用户' }}</div>
                   <p class="comment-text">{{ comment.content }}</p>
@@ -61,7 +61,7 @@
                   
                   <div class="comment-replies" v-if="comment.replies && comment.replies.length > 0">
                     <div class="comment-reply" v-for="reply in comment.replies" :key="reply.comment_id">
-                      <img class="comment-avatar" :src="getAvatarUrl(reply.avatar_url)" alt="头像">
+                      <img class="comment-avatar" :src="getAvatarUrl(reply.avatar_url)" alt="头像" @error="e => e.target.src = defaultAvatar">
                       <div class="comment-reply-content">
                         <div class="comment-author">{{ reply.user_name || '匿名用户' }}</div>
                         <p class="comment-text">{{ reply.content }}</p>
@@ -133,6 +133,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { APP_CONFIG, commonFetch, getAvatarUrl } from '../utils/config';
+import defaultAvatar from '../assets/img/default-avatar.png';
 import { customAlert, customConfirm, customPrompt } from '../utils/modal';
 
 const router = useRouter();

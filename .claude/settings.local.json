@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(git *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "WebSearch",
+      "WebFetch(domain:uniapp.dcloud.net.cn)",
+      "WebFetch(domain:docs.getui.com)",
+      "WebFetch(domain:www.programmersought.com)",
+      "Bash(npx vue-tsc *)"
     ]
   }
 }

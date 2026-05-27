@@ -24,7 +24,7 @@
       
       <div v-else class="userlist-list">
         <div v-for="user in users" :key="user.id" class="userlist-item" @click="goChat(user)">
-          <img class="userlist-avatar" :src="getAvatarUrl(user.avatar_url)" alt="头像">
+          <img class="userlist-avatar" :src="getAvatarUrl(user.avatar_url)" alt="头像" @error="e => e.target.src = defaultAvatar">
           <span class="userlist-username">{{ user.username }}</span>
           <template v-if="user.unread_count > 0">
             <span class="userlist-unread-dot"></span>
@@ -41,6 +41,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { APP_CONFIG, commonFetch, getAvatarUrl } from '../utils/config';
+import defaultAvatar from '../assets/img/default-avatar.png';
 
 const router = useRouter();
 const users = ref([]);

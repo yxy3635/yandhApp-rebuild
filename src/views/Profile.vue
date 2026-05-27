@@ -1,11 +1,16 @@
 <template>
-  <div class="profile-container">
-    <AppHeader title="个人中心" />
-    
+  <div class="profile-container" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+    <AppHeader title="个人中心" show-back />
+
+    <div class="page-indicator">
+      <span class="page-dot" title="主页" @click="navigateWithTransition(router, '/home', 'right')"></span>
+      <span class="page-dot active" title="个人中心"></span>
+    </div>
+
     <main class="profile-main">
       <div class="profile-card">
         <div class="profile-avatar-container">
-          <img id="avatar" :src="getAvatarUrl(userInfo.avatar_url)" alt="头像" @click="triggerAvatarUpload">
+          <img id="avatar" :src="getAvatarUrl(userInfo.avatar_url)" alt="头像" @error="e => e.target.src = defaultAvatar" @click="triggerAvatarUpload">
           <input type="file" ref="avatarInput" accept="image/*" style="display:none;" @change="updateAvatar">
           <button class="edit-avatar-btn" @click="triggerAvatarUpload">✏️</button>
         </div>
@@ -119,9 +124,11 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { APP_CONFIG, commonFetch, getAvatarUrl } from '../utils/config';
+import defaultAvatar from '../assets/img/default-avatar.png';
 import { customAlert, customConfirm } from '../utils/modal';
 import { isVersionLower } from '../utils/version-compare';
 import { getAppVersionName, downloadApk, installApkFile } from '../utils/plus-app-update';
+import { navigateWithTransition } from '../utils/navigation';
 
 const router = useRouter();
 const avatarInput = ref(null);
@@ -372,6 +379,38 @@ const logout = async () => {
 const goTo = (path) => {
   router.push(path);
 };
+
+// Swipe gesture: swipe left to go back to home
+let touchStartX = 0;
+let touchStartY = 0;
+let touchMoved = false;
+
+const onTouchStart = (e) => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchMoved = false;
+};
+
+const onTouchMove = (e) => {
+  if (!touchStartX) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  if (Math.abs(dx) > 10) {
+    touchMoved = true;
+  }
+};
+
+const onTouchEnd = (e) => {
+  if (!touchStartX) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+
+  if (touchMoved && dx > 60 && Math.abs(dx) > Math.abs(dy)) {
+    navigateWithTransition(router, '/home', 'right');
+  }
+
+  touchStartX = 0;
+  touchStartY = 0;
+};
 </script>
 
 <style scoped>
@@ -379,6 +418,42 @@ const goTo = (path) => {
   min-height: 100vh;
   padding-top: 70px;
   padding-bottom: 90px;
+}
+
+.page-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 4px;
+}
+
+.page-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1.5px solid rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: inline-block;
+}
+
+.page-dot.active {
+  width: 20px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #007aff, #5856d6);
+  border-color: transparent;
+  cursor: default;
+}
+
+body.dark-theme .page-dot {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-theme .page-dot.active {
+  background: linear-gradient(90deg, #7bb6ff, #a78bfa);
+  border-color: transparent;
 }
 
 .profile-header {

@@ -92,6 +92,9 @@ const handleLogin = async () => {
       localStorage.setItem('user_id', data.user.id);
       localStorage.setItem('username', data.user.username);
       localStorage.setItem('login_timestamp', Date.now());
+
+      // 通知推送模块上报 CID
+      window.dispatchEvent(new CustomEvent('user-login'));
       
       if (loginForm.username === 'admin') {
         // Handle admin route if needed, for now redirect to home

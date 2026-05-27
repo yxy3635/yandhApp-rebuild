@@ -1,31 +1,37 @@
 <template>
-  <div class="home-container" @click="closeActionMenu">
+  <div class="home-container" @click="closeActionMenu" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
     <AppHeader title="YandH 小窝" emoji="🌟">
       <template #actions>
-        <div class="action-dropdown-container" @click.stop>
-          <button class="app-header-btn primary icon-only" style="padding: 8px; border-radius: 50%;" @click="showActionMenu = !showActionMenu">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          </button>
-          <div class="action-dropdown" :class="{ 'show': showActionMenu }">
-            <button class="dropdown-item" @click="handleRefresh">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 0 2.13-5.85L21 8"></path></svg>
-              刷新动态
-            </button>
-            <button class="dropdown-item" @click="handlePost">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-              发布动态
-            </button>
-          </div>
-        </div>
+        <button ref="plusBtnRef" class="app-header-btn primary icon-only" style="padding: 8px; border-radius: 50%;" @click.stop="toggleActionMenu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
       </template>
     </AppHeader>
-    
+
+    <div class="action-dropdown" :class="{ 'show': showActionMenu }" :style="dropdownStyle" @click.stop @touchstart.stop>
+      <button class="dropdown-item" @click="handleRefresh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 0 2.13-5.85L21 8"></path></svg>
+        刷新动态
+      </button>
+      <button class="dropdown-item" @click="handlePost">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        发布动态
+      </button>
+    </div>
+
+    <div class="page-indicator">
+      <span class="page-dot active" title="主页"></span>
+      <span class="page-dot" title="个人中心" @click="navigateWithTransition(router, '/profile', 'left')"></span>
+    </div>
+
+    <AnniversaryBanner />
+
     <main id="feed-list">
       <LoadingSpinner v-if="loading" text="正在加载动态..." />
       <div v-else-if="feedData.length === 0" class="empty-message">暂无动态</div>
       <template v-else>
         <div class="feed-item" v-for="item in feedData" :key="item.id" @click="goDetail(item.id)">
-          <img class="feed-avatar" :src="item.avatar || defaultAvatar" alt="头像" @click.stop="onAvatarClick(item.user_id)">
+          <img class="feed-avatar" :src="item.avatar || defaultAvatar" alt="头像" loading="lazy" @error="e => e.target.src = defaultAvatar" @click.stop="onAvatarClick(item.user_id)">
           <div class="feed-content">
             <div class="feed-header">
               <span class="feed-username" @click.stop="onUserClick(item.user_id)">{{ item.user }}</span>
@@ -61,7 +67,7 @@
       <div class="user-info-content" @click.stop>
         <div class="user-info-header">
           <div class="user-avatar-container">
-            <img :src="getAvatarUrl(selectedUser.avatar_url)" alt="头像" class="user-info-avatar">
+            <img :src="getAvatarUrl(selectedUser.avatar_url)" alt="头像" class="user-info-avatar" @error="e => e.target.src = defaultAvatar">
             <div class="online-status" :class="onlineStatus.class"></div>
           </div>
           <div class="user-basic-info">
@@ -93,11 +99,13 @@ export default {
 </script>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, onActivated, onDeactivated } from 'vue';
+import { ref, nextTick, onMounted, onBeforeUnmount, onActivated, onDeactivated } from 'vue';
 import { useRouter } from 'vue-router';
 import { APP_CONFIG, commonFetch, getAvatarUrl } from '../utils/config';
 import defaultAvatar from '../assets/img/default-avatar.png';
 import { customAlert, customConfirm, showModal } from '../utils/modal';
+import { navigateWithTransition } from '../utils/navigation';
+import AnniversaryBanner from '../components/AnniversaryBanner.vue';
 
 const router = useRouter();
 
@@ -105,6 +113,22 @@ const currentUserId = ref(localStorage.getItem('user_id'));
 const isAdmin = ref(localStorage.getItem('username') === 'admin');
 
 const showActionMenu = ref(false);
+const plusBtnRef = ref(null);
+const dropdownStyle = ref({ top: '-999px', right: '0' });
+
+const toggleActionMenu = () => {
+  if (!showActionMenu.value) {
+    const btn = plusBtnRef.value
+    if (btn) {
+      const rect = btn.getBoundingClientRect()
+      dropdownStyle.value = {
+        top: (rect.bottom + 10) + 'px',
+        right: (window.innerWidth - rect.right) + 'px'
+      }
+    }
+  }
+  showActionMenu.value = !showActionMenu.value
+}
 
 const closeActionMenu = () => {
   showActionMenu.value = false;
@@ -120,6 +144,46 @@ const handlePost = () => {
   goPost();
 };
 
+// Swipe gesture
+let touchStartX = 0;
+let touchStartY = 0;
+let touchMoved = false;
+
+const onTouchStart = (e) => {
+  if (showActionMenu.value) {
+    if (!e.target.closest('.action-dropdown')) {
+      closeActionMenu();
+    }
+    return;
+  }
+  if (showUserInfo.value) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchMoved = false;
+};
+
+const onTouchMove = (e) => {
+  if (!touchStartX) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  const dy = e.touches[0].clientY - touchStartY;
+  if (Math.abs(dx) > 10) {
+    touchMoved = true;
+  }
+};
+
+const onTouchEnd = (e) => {
+  if (!touchStartX) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+
+  if (touchMoved && dx < -60 && Math.abs(dx) > Math.abs(dy)) {
+    navigateWithTransition(router, '/profile', 'left');
+  }
+
+  touchStartX = 0;
+  touchStartY = 0;
+};
+
 const feedData = ref([]);
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -127,6 +191,7 @@ const currentPage = ref(1);
 const pageSize = 5;
 const hasMoreData = ref(true);
 
+let savedScrollTop = 0;
 let onlineStatusInterval = null;
 let homeUnreadDebounceTimer = null;
 
@@ -152,10 +217,16 @@ onMounted(() => {
 
 /** keep-alive：从其它页返回主页时再检查；与 onMounted 合并防抖，避免首进连弹两次 */
 onActivated(() => {
+  if (savedScrollTop > 0) {
+    nextTick(() => {
+      window.scrollTo(0, savedScrollTop);
+    });
+  }
   scheduleHomeUnreadPrompts();
 });
 
 onDeactivated(() => {
+  savedScrollTop = window.scrollY || document.documentElement.scrollTop;
   if (homeUnreadDebounceTimer) {
     clearTimeout(homeUnreadDebounceTimer);
     homeUnreadDebounceTimer = null;
@@ -520,14 +591,44 @@ async function runHomeUnreadPrompts() {
   padding-bottom: 90px;
 }
 
-.action-dropdown-container {
-  position: relative;
+.page-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 4px;
+}
+
+.page-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1.5px solid rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: inline-block;
+}
+
+.page-dot.active {
+  width: 20px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #007aff, #5856d6);
+  border-color: transparent;
+  cursor: default;
+}
+
+body.dark-theme .page-dot {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-theme .page-dot.active {
+  background: linear-gradient(90deg, #7bb6ff, #a78bfa);
+  border-color: transparent;
 }
 
 .action-dropdown {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
+  position: fixed;
   background: var(--bg-color-card, #fff);
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -539,7 +640,7 @@ async function runHomeUnreadPrompts() {
   opacity: 0;
   transform: translateY(-10px) scale(0.95);
   pointer-events: none;
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   transform-origin: top right;
   z-index: 1000;
   border: 1px solid var(--border-color, rgba(0,0,0,0.05));

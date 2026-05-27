@@ -34,7 +34,7 @@ const tabs = [
   { label: '主页', route: '/home' },
   { label: '互动', route: '/interaction' },
   { label: '纪念日', route: '/anniversary' },
-  { label: '我的', route: '/profile' },
+  { label: 'AI', route: '/ai' },
   { label: '管理', route: '/home', adminOnly: true }
 ]
 
@@ -42,7 +42,7 @@ const visibleTabs = computed(() =>
   tabs.filter(t => !t.adminOnly || isAdmin.value)
 )
 
-const navRoutes = ['/home', '/interaction', '/anniversary', '/profile', '/userlist']
+const navRoutes = ['/home', '/interaction', '/anniversary', '/ai', '/userlist', '/profile']
 const navVisible = computed(() => navRoutes.includes(route.path))
 
 function isActive(tabRoute) {

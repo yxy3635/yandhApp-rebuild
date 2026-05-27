@@ -13,7 +13,7 @@
            @mousedown="handleMouseDown($event, msg)"
            @mouseup="handleMouseUp"
            @mouseleave="handleMouseLeave">
-        <img class="chat-avatar" :src="msg.avatar" alt="头像" @error="handleMsgAvatarError">
+        <img class="chat-avatar" :src="msg.avatar" alt="头像" loading="lazy" @error="handleMsgAvatarError">
         <div>
           <div class="chat-bubble" v-html="formatMessageContent(msg)" ref="bubbles" :data-id="msg.id"></div>
           <div class="chat-meta">{{ msg.from }} · {{ msg.time }}</div>
@@ -107,9 +107,12 @@ const isLoadingMore = ref(false);
 const hasMoreHistory = ref(true);
 let oldestMessageId = null;
 const PAGE_LIMIT = 100;
+const MAX_MESSAGES = 300;
 let lastScrollTop = 0;
 let allowLoadMore = false;
 let pollingTimer = null;
+let userScrollingUp = false;
+let scrollTimeout = null;
 
 const emojiName = ref('');
 const gifSearchQuery = ref('');
@@ -161,29 +164,58 @@ const peerAvatarResolved = computed(() => {
   return getCachedAvatarFor(peerId.value, peerAvatar.value);
 });
 
-onMounted(() => {
+onMounted(async () => {
   if (!myId || !peerId.value) {
     router.push('/interaction');
     return;
   }
-  
+
   if (peerAvatar.value && peerAvatar.value !== 'img/default-avatar.png') {
     localStorage.setItem(`user_avatar_${peerId.value}`, peerAvatar.value);
   }
-  
+
+  // 预加载对方头像：如果缓存中没有，从服务器获取
+  const cached = getCachedAvatarFor(peerId.value, '');
+  if (!cached || cached === defaultAvatar) {
+    try {
+      const profile = await commonFetch(`${APP_CONFIG.API_BASE}/profile.php?user_id=${peerId.value}`);
+      if (profile.success && profile.user && profile.user.avatar_url) {
+        const avatarUrl = getAvatarUrl(profile.user.avatar_url);
+        localStorage.setItem(`user_avatar_${peerId.value}`, avatarUrl);
+      }
+    } catch (_) { /* 静默失败，使用默认头像 */ }
+  }
+
   fetchUserEmojis();
   fetchChatHistory(true);
-  pollingTimer = setInterval(() => fetchChatHistory(false), 1000); // 1s polling
+  pollingTimer = setInterval(() => fetchChatHistory(false), 3000);
+
+  // 键盘适配
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+    window.visualViewport.addEventListener('scroll', handleViewportResize);
+  }
+  window.addEventListener('resize', handleWindowResize);
+  chatInputRef.value?.addEventListener('focus', onInputFocus);
 });
 
 onBeforeUnmount(() => {
   if (pollingTimer) clearInterval(pollingTimer);
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', handleViewportResize);
+    window.visualViewport.removeEventListener('scroll', handleViewportResize);
+  }
+  window.removeEventListener('resize', handleWindowResize);
+  chatInputRef.value?.removeEventListener('focus', onInputFocus);
 });
 
 const goBack = () => router.back();
 
-const handleAvatarError = (e) => { e.target.src = defaultAvatar; };
-const handleMsgAvatarError = (e) => { e.target.src = defaultAvatar; };
+const handleMsgAvatarError = (e) => {
+  if (e.target.src !== defaultAvatar) {
+    e.target.src = defaultAvatar;
+  }
+};
 
 function getCachedAvatarFor(userId, fallback) {
   if (!userId) return getAvatarUrl(fallback);
@@ -200,6 +232,38 @@ function getCachedAvatarFor(userId, fallback) {
   }
   return getAvatarUrl(fallback);
 }
+
+// 键盘适配
+const initialViewportHeight = ref(window.visualViewport ? window.visualViewport.height : window.innerHeight);
+
+const handleViewportResize = () => {
+  if (!window.visualViewport) return;
+  const viewport = window.visualViewport;
+  const keyboardHeight = initialViewportHeight.value - viewport.height;
+  const footer = document.querySelector('.chat-container footer');
+  const chatList = chatListRef.value;
+  if (keyboardHeight > 100) {
+    if (footer) footer.style.bottom = keyboardHeight + 'px';
+    if (chatList) chatList.style.paddingBottom = (90 + keyboardHeight) + 'px';
+    requestAnimationFrame(() => scrollToBottom());
+  } else {
+    if (footer) footer.style.bottom = '0';
+    if (chatList) chatList.style.paddingBottom = '90px';
+  }
+};
+
+const handleWindowResize = () => {
+  if (!window.visualViewport) {
+    initialViewportHeight.value = window.innerHeight;
+    handleViewportResize();
+  }
+};
+
+const onInputFocus = () => {
+  nextTick(() => {
+    requestAnimationFrame(() => scrollToBottom());
+  });
+};
 
 const formatMessageTime = (createdAt) => {
   if (!createdAt) return '';
@@ -229,16 +293,20 @@ const formatMessageContent = (msg) => {
 
 const isAtBottom = () => {
   if (!chatListRef.value) return false;
-  return chatListRef.value.scrollHeight - chatListRef.value.scrollTop - chatListRef.value.clientHeight < 50;
+  return chatListRef.value.scrollHeight - chatListRef.value.scrollTop - chatListRef.value.clientHeight < 80;
 };
 
 const scrollToBottom = () => {
-  if (chatListRef.value) {
-    chatListRef.value.scrollTop = chatListRef.value.scrollHeight;
+  const list = chatListRef.value;
+  if (list) {
+    requestAnimationFrame(() => {
+      list.scrollTop = list.scrollHeight;
+    });
   }
 };
 
 const fetchChatHistory = async (isFirstLoad = false) => {
+  if (!isFirstLoad && userScrollingUp) return; // 用户上滑查看历史时不轮询
   try {
     const res = await commonFetch(`${APP_CONFIG.API_BASE}/get_messages.php?user_id=${myId}&peer_id=${peerId.value}&limit=${PAGE_LIMIT}`);
     if (res.success && Array.isArray(res.messages)) {
@@ -266,18 +334,24 @@ const fetchChatHistory = async (isFirstLoad = false) => {
           added = true;
         }
       });
-      
+
+      // 限制最大消息数，移除超出上限的最旧消息
+      if (chatData.value.length > MAX_MESSAGES) {
+        chatData.value = chatData.value.slice(chatData.value.length - MAX_MESSAGES);
+        oldestMessageId = chatData.value[0]?.id || null;
+      }
+
       chatData.value.sort((a, b) => a.id - b.id);
 
       if (isFirstLoad) {
         nextTick(() => {
-          scrollToBottom();
-          setTimeout(() => { allowLoadMore = true; }, 200);
+          requestAnimationFrame(() => scrollToBottom());
+          setTimeout(() => { allowLoadMore = true; }, 300);
         });
       } else if (added) {
         const atBottom = isAtBottom();
         nextTick(() => {
-          if (atBottom) scrollToBottom();
+          if (atBottom) requestAnimationFrame(() => scrollToBottom());
         });
       }
       markMessagesRead();
@@ -319,7 +393,9 @@ const loadMoreHistory = async () => {
       chatData.value.sort((a, b) => a.id - b.id);
 
       nextTick(() => {
-        list.scrollTop = prevScrollTop + (list.scrollHeight - prevScrollHeight);
+        requestAnimationFrame(() => {
+          list.scrollTop = prevScrollTop + (list.scrollHeight - prevScrollHeight);
+        });
       });
     } else {
       hasMoreHistory.value = false;
@@ -334,9 +410,14 @@ const loadMoreHistory = async () => {
 const onScroll = () => {
   if (!chatListRef.value) return;
   const st = chatListRef.value.scrollTop;
-  if (st < lastScrollTop && st <= 10) {
+  // 检测用户是否在向上滑动（查看历史）
+  const scrollingUp = st < lastScrollTop;
+  if (scrollingUp && st <= 30) {
     loadMoreHistory();
   }
+  userScrollingUp = scrollingUp && !isAtBottom();
+  if (scrollTimeout) clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(() => { userScrollingUp = false; }, 1500);
   lastScrollTop = st;
 };
 
@@ -606,8 +687,9 @@ const recallMessage = async () => {
   flex: 1;
   padding: 80px 8px 90px 8px;
   overflow-y: auto;
-  scroll-behavior: smooth;
   margin-top: 60px;
+  -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
 }
 
 .chat-top-loader {
@@ -618,11 +700,13 @@ const recallMessage = async () => {
 .dot { width: 6px; height: 6px; border-radius: 50%; background: #8ea6ff; animation: dotPulse 1.2s ease-in-out infinite; }
 @keyframes dotPulse { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-4px); opacity: 1; } }
 
-.chat-row { display: flex; align-items: flex-end; margin-bottom: 16px; }
+.chat-row { display: flex; align-items: flex-end; margin-bottom: 16px; content-visibility: auto; contain-intrinsic-size: auto 70px; contain: layout style paint; }
 .chat-row.me { flex-direction: row-reverse; }
 
 .chat-avatar {
   width: 38px; height: 38px; border-radius: 50%; object-fit: cover; margin: 0 8px;
+  background: var(--bg-color-card, #e8ecf1);
+  flex-shrink: 0;
 }
 
 .chat-bubble {
@@ -641,6 +725,8 @@ const recallMessage = async () => {
 footer {
   position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-color-card, #fff);
   border-top: 1px solid var(--border-color, #eee); padding: 8px 6px; z-index: 10;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  transition: bottom 0.15s ease-out;
 }
 
 .input-area { display: flex; align-items: center; height: 54px; }

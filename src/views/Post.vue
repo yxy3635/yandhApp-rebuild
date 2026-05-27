@@ -7,6 +7,10 @@
     </AppHeader>
     
     <main class="page-bounce-in">
+      <div class="post-user-info">
+        <img id="user-avatar" :src="userAvatar" alt="头像">
+        <span class="post-username">{{ currentUsername }}</span>
+      </div>
       <div id="upload-progress" v-if="isSubmitting" style="text-align:center; margin-top: 10px; font-size: 14px; color: #555;">
         {{ uploadProgressText }}
       </div>
@@ -258,6 +262,23 @@ const submitPost = () => {
 .post-container {
   min-height: 100vh;
   background: var(--bg-color-light);
+}
+
+.post-user-info {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.post-username {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color-light, #333);
+}
+
+:global(body.dark-theme) .post-username {
+  color: var(--text-color-light, #e0e0e0);
 }
 
 .home-header {

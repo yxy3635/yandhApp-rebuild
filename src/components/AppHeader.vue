@@ -61,12 +61,9 @@ const handleBack = () => {
   width: 100%;
   max-width: 500px;
   height: 64px;
-  /* 安卓 fallback：较高透明度 + SVG 噪点模拟磨砂 */
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.92) 0%,
-    rgba(255, 255, 255, 0.80) 100%
-  );
+  /* 磨砂玻璃：background: inherit + filter:blur 兼容所有平台 */
+  background: transparent;
+  overflow: hidden;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -85,7 +82,20 @@ const handleBack = () => {
   animation: headerSlideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 支持 backdrop-filter 的浏览器：降低透明度 + 真正模糊 */
+/* 模糊层：使用 body 背景 + filter:blur，再叠加半透明 tint */
+.app-header::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background: #f6f8fa;
+  background-attachment: fixed;
+  filter: blur(48px);
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.78);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* 支持 backdrop-filter 的浏览器：真实模糊 + 低透明度（关闭 ::before fallback） */
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .app-header {
     background: linear-gradient(
@@ -95,6 +105,10 @@ const handleBack = () => {
     );
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
+  }
+
+  .app-header::before {
+    content: none;
   }
 }
 
@@ -110,16 +124,18 @@ const handleBack = () => {
 }
 
 body.dark-theme .app-header {
-  background: linear-gradient(
-    180deg,
-    rgba(28, 30, 36, 0.94) 0%,
-    rgba(22, 24, 30, 0.84) 100%
-  );
+  background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04) inset,
     0 4px 24px rgba(0, 0, 0, 0.3),
     0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .app-header::before {
+  background: linear-gradient(135deg, #181c24 0%, #23242a 100%);
+  background-attachment: fixed;
+  box-shadow: inset 0 0 0 999px rgba(22, 24, 30, 0.82);
 }
 
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
@@ -130,6 +146,10 @@ body.dark-theme .app-header {
       rgba(22, 24, 30, 0.58) 100%
     );
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  body.dark-theme .app-header::before {
+    content: none;
   }
 }
 
