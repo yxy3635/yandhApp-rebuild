@@ -303,11 +303,45 @@ function onImagesSelected(e) {
   const files = Array.from(e.target.files || [])
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue
-    const reader = new FileReader()
-    reader.onload = () => { pendingImages.value.push(reader.result) }
-    reader.readAsDataURL(file)
+    resizeImageForUpload(file).then(dataUrl => {
+      pendingImages.value.push(dataUrl)
+    })
   }
   e.target.value = ''
+}
+
+/**
+ * 将图片缩放到适合 API 上传的尺寸（长边 ≤ 2048px，JPEG 质量 0.8）
+ * 减少请求体大小，加快上传速度
+ */
+function resizeImageForUpload(file) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const maxDim = 2048
+      let w = img.naturalWidth
+      let h = img.naturalHeight
+      if (w <= maxDim && h <= maxDim) {
+        // 无需缩放，直接读取
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.readAsDataURL(file)
+        return
+      }
+      const scale = maxDim / Math.max(w, h)
+      w = Math.round(w * scale)
+      h = Math.round(h * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', 0.8))
+    }
+    img.src = URL.createObjectURL(file)
+  })
 }
 
 function removeImage(i) {
@@ -521,16 +555,49 @@ async function ocrWithBestPsm(imgDataUrl) {
   return bestText
 }
 
+/**
+ * 将 base64 data URL 转为 Blob，用于 multipart 上传
+ */
+function dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(',')
+  const mime = parts[0].match(/:(.*?);/)[1]
+  const bytes = atob(parts[1])
+  const arr = new Uint8Array(bytes.length)
+  for (let i = 0; i < bytes.length; i++) {
+    arr[i] = bytes.charCodeAt(i)
+  }
+  return new Blob([arr], { type: mime })
+}
+
+/**
+ * 上传单张图片到服务器，返回公开 URL
+ */
+async function uploadImageToServer(dataUrl) {
+  const blob = dataUrlToBlob(dataUrl)
+  const formData = new FormData()
+  formData.append('image', blob, 'image.' + (blob.type === 'image/png' ? 'png' : 'jpg'))
+
+  const resp = await fetch(`${APP_CONFIG.API_BASE}/upload_ai_image.php`, {
+    method: 'POST',
+    body: formData,
+  })
+  const result = await resp.json()
+  if (!result.success) {
+    throw new Error(result.message || '图片上传失败')
+  }
+  return result.url
+}
+
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text && !pendingImages.value.length) return
   if (thinking.value) return
 
-  const images = [...pendingImages.value]
+  const localImages = [...pendingImages.value]
   const userMsg = {
     role: 'user',
-    content: text || (images.length ? '[图片]' : ''),
-    images
+    content: text || (localImages.length ? '[图片]' : ''),
+    images: localImages
   }
   messages.value.push(userMsg)
   inputText.value = ''
@@ -541,23 +608,43 @@ async function sendMessage() {
   scrollToBottom()
   saveCurrentSession()
 
-  // 先展示思考动画，再处理 OCR，确保用户在图片识别阶段也能看到动画
+  // 先展示思考动画
   thinking.value = true
   messages.value.push({ role: 'assistant', content: '' })
   scrollToBottom()
 
-  // 本地 OCR 识别图片文字（预处理 + 双 PSM 优选）
+  // 第一步：上传图片到服务器，获取可公开访问的 URL
+  let uploadedUrls = []
+  if (localImages.length) {
+    ocrProgress.value = '正在上传图片...'
+    scrollToBottom()
+    try {
+      for (let i = 0; i < localImages.length; i++) {
+        ocrProgress.value = `正在上传图片 (${i + 1}/${localImages.length})...`
+        const url = await uploadImageToServer(localImages[i])
+        uploadedUrls.push(url)
+      }
+    } catch (e) {
+      const assistantMsg = messages.value[messages.value.length - 1]
+      assistantMsg.content = '图片上传失败：' + (e.message || '网络错误')
+      thinking.value = false
+      ocrProgress.value = ''
+      return
+    }
+  }
+
+  // 第二步：本地 OCR 识别图片文字（预处理 + 双 PSM 优选）
   let ocrText = ''
-  if (images.length) {
+  if (localImages.length) {
     ocrProgress.value = '正在预处理图片...'
     scrollToBottom()
     try {
       const ocrResults = []
-      for (let i = 0; i < images.length; i++) {
-        ocrProgress.value = `正在预处理图片 (${i + 1}/${images.length})...`
-        const preprocessed = await preprocessImage(images[i])
+      for (let i = 0; i < localImages.length; i++) {
+        ocrProgress.value = `正在预处理图片 (${i + 1}/${localImages.length})...`
+        const preprocessed = await preprocessImage(localImages[i])
 
-        ocrProgress.value = `正在识别文字 (${i + 1}/${images.length})...`
+        ocrProgress.value = `正在识别文字 (${i + 1}/${localImages.length})...`
         const words = await ocrWithBestPsm(preprocessed)
         if (words) ocrResults.push(words)
       }
@@ -586,7 +673,7 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: finalMessage,
-        images: [],
+        images: uploadedUrls,
         history: messages.value.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
       })
     })

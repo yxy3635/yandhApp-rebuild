@@ -1,12 +1,14 @@
 <?php
 /**
- * AI Chat API — 叶鱼（DeepSeek V4 Pro + 文件下载）
+ * AI Chat API — 叶鱼（DeepSeek V4 Pro + 识图 + 文件下载）
  *
  * 部署：将此文件放到服务器的 /api/ 目录下
- * 前端请求：POST { message, history? }
- * 返回：{ success, reply, files? }
+ * 前端请求：POST { message, history?, images? }
+ *   - images: 图片 URL 数组，传入后启用多模态识图模式
+ * 返回（SSE 流）：data: { c, reply, files?, file_hint? }
  *
- * 图片 OCR 已由前端 Tesseract.js 处理，不再需要后端 OCR
+ * DeepSeek V4 Pro 图片格式：message 顶层 image_data（纯 base64 无前缀）或 image_url 字段
+ * （不是 OpenAI content 数组嵌套格式！）
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -235,6 +237,7 @@ function callDeepSeek($messages, $model, $apiKey, $apiBase, $temperature = 0.7, 
  */
 function callDeepSeekStream($messages, $model, $apiKey, $apiBase, $temperature = 0.7, $maxTokens = 8192) {
     $fullContent = '';
+    $responseBody = '';  // 用于错误时输出详情
 
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -256,7 +259,8 @@ function callDeepSeekStream($messages, $model, $apiKey, $apiBase, $temperature =
         CURLOPT_CONNECTTIMEOUT => 10,
     ]);
 
-    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $raw) use (&$fullContent) {
+    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $raw) use (&$fullContent, &$responseBody) {
+        $responseBody .= $raw;
         $lines = explode("\n", $raw);
         foreach ($lines as $line) {
             $line = trim($line);
@@ -287,7 +291,13 @@ function callDeepSeekStream($messages, $model, $apiKey, $apiBase, $temperature =
         return ['error' => 'API 连接失败: ' . $error];
     }
     if ($httpCode !== 200) {
-        return ['error' => 'HTTP ' . $httpCode . ' 请求失败'];
+        // 解析错误响应体，提取 DeepSeek 返回的具体错误信息
+        $detail = $responseBody;
+        $errData = json_decode($responseBody, true);
+        if ($errData && isset($errData['error']['message'])) {
+            $detail = $errData['error']['message'];
+        }
+        return ['error' => 'HTTP ' . $httpCode . ': ' . $detail];
     }
 
     return ['reply' => $fullContent];
@@ -500,13 +510,14 @@ function cleanOldFiles($dir, $maxAge) {
 
 $input = json_decode(file_get_contents('php://input'), true);
 
-if (!$input || empty($input['message'])) {
+if (!$input || (empty($input['message']) && empty($input['images']))) {
     echo json_encode(['success' => false, 'message' => '消息不能为空']);
     exit;
 }
 
 $userMessage = trim($input['message'] ?? '');
 $history     = $input['history'] ?? [];
+$images      = $input['images'] ?? [];  // 图片 URL 数组
 
 // ╔══════════════════════════════════════════════════════╗
 // ║                   构建消息列表                         ║
@@ -524,7 +535,42 @@ foreach ($history as $h) {
     }
 }
 
-$messages[] = ['role' => 'user', 'content' => $userMessage];
+// 构建当前用户消息
+// DeepSeek V4 Pro 格式：图片作为 message 顶层独立字段 image_data（纯 base64，无 data URI 前缀）
+// 与 OpenAI 兼容格式（content 数组嵌套 image_url）完全不同！
+$ownHost = $_SERVER['HTTP_HOST'] ?? '';
+$currentUserMsg = ['role' => 'user', 'content' => $userMessage ?: '请查看这张图片'];
+
+if (!empty($images)) {
+    $img = $images[0];  // V4 Pro 每轮处理一张图片
+    $localFilePath = null;
+
+    $isDataUrl = (strpos($img, 'data:') === 0);
+    if (!$isDataUrl) {
+        $urlPath = parse_url($img, PHP_URL_PATH);
+        $isOwnUrl = ($ownHost && strpos($img, $ownHost) !== false);
+        $isRelative = (strpos($img, 'http') !== 0);
+
+        if ($isOwnUrl || $isRelative) {
+            $candidatePath = $isRelative ? $img : $urlPath;
+            $localFilePath = __DIR__ . '/../' . ltrim($candidatePath, '/');
+        }
+    }
+
+    if ($localFilePath && file_exists($localFilePath)) {
+        // 本地文件 → 纯 base64（不带 data:image/...;base64, 前缀）
+        $currentUserMsg['image_data'] = base64_encode(file_get_contents($localFilePath));
+    } elseif ($isDataUrl) {
+        // data URL → 去掉前缀，取纯 base64 字符串
+        $pureBase64 = preg_replace('#^data:image/\w+;base64,#', '', $img);
+        $currentUserMsg['image_data'] = $pureBase64;
+    } else {
+        // 外部 URL → image_url 字段
+        $currentUserMsg['image_url'] = $img;
+    }
+}
+
+$messages[] = $currentUserMsg;
 
 // ╔══════════════════════════════════════════════════════╗
 // ║                   调用 AI                              ║
