@@ -239,16 +239,18 @@ const initialViewportHeight = ref(window.visualViewport ? window.visualViewport.
 const handleViewportResize = () => {
   if (!window.visualViewport) return;
   const viewport = window.visualViewport;
-  const keyboardHeight = initialViewportHeight.value - viewport.height;
-  const footer = document.querySelector('.chat-container footer');
+  const keyboardHeight = initialViewportHeight.value - viewport.height - 40;
   const chatList = chatListRef.value;
   if (keyboardHeight > 100) {
-    if (footer) footer.style.bottom = keyboardHeight + 'px';
-    if (chatList) chatList.style.paddingBottom = (90 + keyboardHeight) + 'px';
-    requestAnimationFrame(() => scrollToBottom());
+    if (chatList) {
+      chatList.style.paddingBottom = keyboardHeight + 'px';
+      requestAnimationFrame(() => {
+        chatList.scrollTop = chatList.scrollHeight - viewport.height - 120;
+      });
+    }
   } else {
-    if (footer) footer.style.bottom = '0';
     if (chatList) chatList.style.paddingBottom = '90px';
+    initialViewportHeight.value = viewport.height;
   }
 };
 

@@ -33,8 +33,8 @@ const isAdmin = ref(localStorage.getItem('username') === 'admin')
 const tabs = [
   { label: '主页', route: '/home' },
   { label: '互动', route: '/interaction' },
-  { label: '纪念日', route: '/anniversary' },
   { label: 'AI', route: '/ai' },
+  { label: '纪念日', route: '/anniversary' },
   { label: '管理', route: '/home', adminOnly: true }
 ]
 
