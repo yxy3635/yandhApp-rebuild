@@ -1,0 +1,898 @@
+/* ============================================
+   足迹 (Footprints) 页面样式
+   ============================================ */
+
+/* --- 消除点击矩形框 --- */
+.leaflet-interactive:focus {
+  outline: none !important;
+}
+path.leaflet-interactive:focus {
+  outline: none !important;
+}
+
+/* --- 地图容器 --- */
+.footprints-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.footprints-main {
+  position: absolute;
+  top: 64px;        /* AppHeader 高度 */
+  left: 0;
+  right: 0;
+  bottom: 0;         /* 地图全屏，无需底部 padding（BottomNav 不在地图页面显示时） */
+  animation: fadeInUp 0.7s ease;
+}
+
+/* 当 BottomNav 可见时留出底部空间 */
+.footprints-main.has-nav {
+  bottom: 70px;
+}
+
+#footprints-map {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* --- 地图控件按钮 --- */
+.map-control-btn {
+  position: absolute;
+  z-index: 1000;
+  background: var(--bg-color-card, #fff);
+  color: var(--text-color-light, #333);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 10px var(--shadow-color, rgba(0,0,0,0.1));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.map-control-btn:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+.map-control-btn.back-btn {
+  top: 16px;
+  right: 16px;
+}
+
+.map-control-btn.add-btn {
+  bottom: 100px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  padding: 0;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 300;
+  background: linear-gradient(135deg, #4f8cff, #6699ff);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 16px rgba(79, 140, 255, 0.4);
+}
+
+.map-control-btn.list-btn {
+  bottom: 100px;
+  left: 20px;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 14px;
+  gap: 8px;
+}
+
+.map-control-btn .badge {
+  background: #4f8cff;
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* --- 底部滑出面板 --- */
+.slide-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 2000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.slide-panel-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.slide-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 60vh;
+  background: var(--bg-color-card, #fff);
+  border-radius: 20px 20px 0 0;
+  z-index: 2001;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -4px 24px var(--shadow-color, rgba(0,0,0,0.12));
+}
+
+.slide-panel.show {
+  transform: translateY(0);
+}
+
+.panel-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border-color, #ddd);
+  border-radius: 2px;
+  margin: 12px auto 8px;
+  flex-shrink: 0;
+}
+
+.panel-header {
+  padding: 0 20px 12px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-color-light, #333);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-color-medium, #999);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.panel-list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 24px;
+  flex: 1;
+}
+
+/* --- 足迹列表卡片 --- */
+.footprint-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  background: var(--bg-color-light, #f8f9fb);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.footprint-card:active {
+  transform: scale(0.98);
+  border-color: #4f8cff;
+}
+
+.footprint-card .card-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--border-color, #eee);
+}
+
+.footprint-card .card-thumb-placeholder {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ffe0e8, #ffd6e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.footprint-card .card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.footprint-card .card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-color-light, #333);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.footprint-card .card-meta {
+  font-size: 12px;
+  color: var(--text-color-medium, #999);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footprint-card .card-arrow {
+  color: var(--text-color-medium, #ccc);
+  font-size: 16px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-color-medium, #999);
+}
+
+.empty-state .empty-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-state .empty-text {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.empty-state .empty-hint {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* --- 模态框 --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 3000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.25s ease;
+}
+
+.modal-sheet {
+  width: 100%;
+  max-width: 500px;
+  max-height: 85vh;
+  background: var(--bg-color-card, #fff);
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.15);
+}
+
+.modal-sheet-header {
+  padding: 16px 20px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color, #eee);
+  flex-shrink: 0;
+}
+
+.modal-sheet-header h3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-color-light, #333);
+  margin: 0;
+}
+
+.modal-sheet-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--text-color-medium, #999);
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+.modal-sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px;
+  flex: 1;
+}
+
+/* --- 表单样式 --- */
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color-light, #333);
+  margin-bottom: 6px;
+}
+
+.form-group label .required {
+  color: #4f8cff;
+  margin-left: 2px;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border-color, #ddd);
+  border-radius: 10px;
+  font-size: 15px;
+  color: var(--text-color-light, #333);
+  background: var(--bg-color-light, #f8f9fb);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #4f8cff;
+  box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+}
+
+.form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.form-group .coord-display {
+  font-size: 12px;
+  color: var(--text-color-medium, #999);
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+}
+
+/* --- 图片上传 --- */
+.image-upload-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.image-upload-item {
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1.5px solid var(--border-color, #eee);
+  position: relative;
+}
+
+.image-upload-item .remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ff4757;
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(255, 71, 87, 0.3);
+}
+
+.image-upload-add {
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  border: 2px dashed var(--border-color, #ddd);
+  background: var(--bg-color-light, #f8f9fb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: var(--text-color-medium, #ccc);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.image-upload-add:active {
+  border-color: #4f8cff;
+  color: #4f8cff;
+  background: rgba(255, 107, 157, 0.05);
+}
+
+/* --- 提交按钮 --- */
+.submit-btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f8cff, #6699ff);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+.submit-btn:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.delete-btn {
+  width: 100%;
+  padding: 13px;
+  border: 1.5px solid #ff4757;
+  border-radius: 12px;
+  background: transparent;
+  color: #ff4757;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.delete-btn:active {
+  background: #ff4757;
+  color: #fff;
+}
+
+/* --- 足迹详情模态框 --- */
+.detail-images {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+  scroll-snap-type: x mandatory;
+}
+
+.detail-images img {
+  width: 200px;
+  height: 150px;
+  border-radius: 12px;
+  object-fit: cover;
+  scroll-snap-align: start;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.detail-images img:active { transform: scale(0.96); }
+
+/* 全屏图片浏览器 */
+.img-viewer-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+}
+.img-viewer-img {
+  max-width: 95vw; max-height: 90vh;
+  object-fit: contain; border-radius: 4px;
+  user-select: none;
+}
+.img-viewer-close {
+  position: absolute; top: 16px; right: 20px;
+  background: rgba(255,255,255,0.15); border: none; color: #fff;
+  font-size: 22px; width: 40px; height: 40px; border-radius: 50%;
+  cursor: pointer; z-index: 1;
+}
+.img-viewer-prev, .img-viewer-next {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,0.15); border: none; color: #fff;
+  font-size: 36px; width: 44px; height: 44px; border-radius: 50%;
+  cursor: pointer; line-height: 1;
+}
+.img-viewer-prev { left: 10px; }
+.img-viewer-next { right: 10px; }
+.img-viewer-counter {
+  position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,0.7); font-size: 13px;
+}
+
+.detail-field {
+  margin-bottom: 14px;
+}
+
+.detail-field .field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-medium, #999);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.detail-field .field-value {
+  font-size: 15px;
+  color: var(--text-color-light, #333);
+  line-height: 1.5;
+}
+
+/* --- 足迹弹出卡片 --- */
+.footprint-card-popup .leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.footprint-card-popup .leaflet-popup-content {
+  margin: 0 !important;
+  min-width: 220px;
+}
+.footprint-popup .popup-photo {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+.footprint-popup .popup-title {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 14px 4px;
+  color: var(--text-color-light, #333);
+}
+.footprint-popup .popup-meta {
+  font-size: 12px;
+  color: var(--text-color-medium, #999);
+  padding: 0 14px 4px;
+}
+.footprint-popup .popup-desc {
+  font-size: 13px;
+  color: var(--text-color-light, #555);
+  padding: 4px 14px 10px;
+  line-height: 1.5;
+}
+.footprint-popup .popup-action {
+  font-size: 13px;
+  color: #4f8cff;
+  padding: 8px 14px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  border-top: 1px solid var(--border-color, #eee);
+  margin: 0 14px;
+}
+.footprint-popup .popup-action:active {
+  opacity: 0.7;
+}
+
+/* --- 城市记录 Popup --- */
+.city-records-popup .leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.city-records-popup .leaflet-popup-content {
+  margin: 0 !important;
+  min-width: 260px;
+}
+.city-popup-container { max-height: 280px; display: flex; flex-direction: column; }
+.cpp-header {
+  padding: 12px 16px 8px; font-size: 13px; font-weight: 600;
+  color: var(--text-color-light, #333);
+  border-bottom: 1px solid var(--border-color, #eee);
+  flex-shrink: 0;
+}
+.cpp-list { overflow-y: auto; flex: 1; padding: 4px 0; }
+.pp-item {
+  display: flex; gap: 10px; padding: 10px 16px; cursor: pointer;
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
+  transition: background 0.15s; align-items: center;
+}
+.pp-item:last-child { border-bottom: none; }
+.pp-item:active { background: var(--bg-color-light, #f5f6f8); }
+.pp-thumb {
+  width: 50px; height: 50px; border-radius: 8px; object-fit: cover;
+  flex-shrink: 0;
+}
+.pp-thumb-placeholder {
+  width: 50px; height: 50px; border-radius: 8px; flex-shrink: 0;
+  background: linear-gradient(135deg, #e8edff, #dbe4ff);
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.pp-info { flex: 1; min-width: 0; }
+.pp-title { font-size: 14px; font-weight: 600; color: var(--text-color-light, #333); margin-bottom: 2px; }
+.pp-meta { font-size: 11px; color: var(--text-color-medium, #999); margin-bottom: 2px; }
+.pp-desc { font-size: 12px; color: var(--text-color-medium, #888); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+body.dark-theme .pp-item:active { background: #2a2e38; }
+
+/* --- 长按提示 Toast --- */
+.longpress-toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 20px;
+  font-size: 14px;
+  z-index: 5000;
+  pointer-events: none;
+  animation: toastFade 1.8s ease forwards;
+}
+
+/* --- Leaflet 控件覆写 --- */
+.leaflet-control-zoom a {
+  background: var(--bg-color-card, #fff) !important;
+  color: var(--text-color-light, #333) !important;
+  border-color: var(--border-color, #ddd) !important;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  opacity: 0.5;
+}
+
+/* Leaflet 弹窗样式 */
+.leaflet-popup-content-wrapper {
+  background: var(--bg-color-card, #fff) !important;
+  color: var(--text-color-light, #333) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px var(--shadow-color, rgba(0,0,0,0.15)) !important;
+}
+
+.leaflet-popup-tip {
+  background: var(--bg-color-card, #fff) !important;
+}
+
+.leaflet-popup-content {
+  margin: 10px 14px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.leaflet-popup-content strong {
+  font-size: 15px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.leaflet-popup-close-button {
+  color: var(--text-color-medium, #999) !important;
+  font-size: 18px !important;
+  padding: 6px 8px !important;
+}
+
+/* --- 自定义 DivIcon 标记 --- */
+.footprint-marker {
+  width: 14px;
+  height: 14px;
+  background: #4f8cff;
+  border: 2.5px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(79, 140, 255, 0.5);
+  transition: transform 0.15s ease;
+}
+
+.footprint-marker:hover {
+  transform: scale(1.5);
+}
+
+.footprint-marker.current {
+  background: #007aff;
+  box-shadow: 0 2px 12px rgba(0, 122, 255, 0.6);
+  animation: markerPulse 2s infinite;
+}
+
+/* --- 动画 --- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes toastFade {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes markerPulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(0, 122, 255, 0.4); }
+  50% { box-shadow: 0 2px 18px rgba(0, 122, 255, 0.75); }
+}
+
+/* ============================================
+   暗色主题适配
+   ============================================ */
+body.dark-theme .footprints-container {
+  /* 继承全局暗色背景 */
+}
+
+body.dark-theme #footprints-map {
+  /* 地图瓦片通过 CSS filter 实现暗色 */
+}
+
+/* 暗色模式：地图瓦片反色 */
+body.dark-theme .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.88) saturate(0.75);
+}
+
+/* 暗色模式下，标记颜色变亮 */
+body.dark-theme .footprint-marker {
+  border-color: #1a1e24;
+  background: #6699ff;
+}
+
+/* 暗色模式：Leaflet 控件 */
+body.dark-theme .leaflet-control-zoom a {
+  background: #2a2e38 !important;
+  color: #e0e0e0 !important;
+  border-color: #444 !important;
+}
+
+body.dark-theme .leaflet-popup-content-wrapper {
+  background: #2a2e38 !important;
+  color: #e0e0e0 !important;
+}
+
+body.dark-theme .leaflet-popup-tip {
+  background: #2a2e38 !important;
+}
+
+/* 暗色模式：表单与卡片 */
+body.dark-theme .form-group input,
+body.dark-theme .form-group textarea,
+body.dark-theme .form-group select {
+  background: #1e2129;
+  border-color: #444;
+  color: #e0e0e0;
+}
+
+body.dark-theme .form-group input:focus,
+body.dark-theme .form-group textarea:focus {
+  border-color: #6699ff;
+  box-shadow: 0 0 0 3px rgba(255, 143, 171, 0.12);
+}
+
+body.dark-theme .image-upload-add {
+  background: #1e2129;
+  border-color: #444;
+}
+
+body.dark-theme .footprint-card {
+  background: #1e2129;
+}
+
+body.dark-theme .footprint-card .card-thumb-placeholder {
+  background: linear-gradient(135deg, #3a2a30, #3a2a35);
+}
+
+body.dark-theme .delete-btn {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+/* 响应式 */
+@media (max-width: 500px) {
+  .map-control-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .map-control-btn.add-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+    right: 14px;
+    bottom: 90px;
+  }
+
+  .map-control-btn.list-btn {
+    left: 14px;
+    bottom: 90px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .modal-sheet {
+    max-height: 80vh;
+  }
+
+  .footprint-card .card-thumb,
+  .footprint-card .card-thumb-placeholder {
+    width: 52px;
+    height: 52px;
+  }
+
+  .detail-images img {
+    width: 160px;
+    height: 120px;
+  }
+}
+
+@media (max-width: 360px) {
+  .map-control-btn.add-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 20px;
+    right: 10px;
+    bottom: 80px;
+  }
+
+  .map-control-btn.list-btn {
+    left: 10px;
+    bottom: 80px;
+    font-size: 12px;
+  }
+
+  .image-upload-item,
+  .image-upload-add {
+    width: 64px;
+    height: 64px;
+  }
+}

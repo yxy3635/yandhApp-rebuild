@@ -42,7 +42,7 @@ const visibleTabs = computed(() =>
   tabs.filter(t => !t.adminOnly || isAdmin.value)
 )
 
-const navRoutes = ['/home', '/interaction', '/anniversary', '/ai', '/userlist', '/profile']
+const navRoutes = ['/home', '/interaction', '/anniversary', '/ai', '/footprints', '/userlist', '/profile']
 const navVisible = computed(() => navRoutes.includes(route.path))
 
 function isActive(tabRoute) {

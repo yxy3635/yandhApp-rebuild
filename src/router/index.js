@@ -92,6 +92,11 @@ const routes = [
     path: '/pindou',
     name: 'Pindou',
     component: () => import('../views/Pindou.vue')
+  },
+  {
+    path: '/footprints',
+    name: 'Footprints',
+    component: () => import('../views/Footprints.vue')
   }
 ]
 

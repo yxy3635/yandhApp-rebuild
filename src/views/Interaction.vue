@@ -19,6 +19,13 @@
         <span class="interaction-desc">记录美好时光</span>
         <span class="interaction-arrow">›</span>
       </div>
+
+      <div class="interaction-fullcard interaction-animate" @click="goTo('/footprints')">
+        <span class="interaction-icon">🗺️</span>
+        <span class="interaction-title">足迹</span>
+        <span class="interaction-desc">我们的旅行地图</span>
+        <span class="interaction-arrow">›</span>
+      </div>
       
       <div class="interaction-section-title">游戏</div>
       
