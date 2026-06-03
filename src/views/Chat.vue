@@ -371,6 +371,19 @@ onMounted(async () => {
     } catch (_) { /* 静默失败 */ }
   }
 
+  // 复用个人中心页面的头像获取方式：请求 profile.php 获取自己的头像
+  const myCached = getCachedAvatarFor(myId, myAvatar);
+  if (!myCached || myCached === defaultAvatar) {
+    try {
+      const myProfile = await commonFetch(`${APP_CONFIG.API_BASE}/profile.php?user_id=${myId}`);
+      if (myProfile.success && myProfile.user && myProfile.user.avatar_url) {
+        const avatarUrl = getAvatarUrl(myProfile.user.avatar_url);
+        localStorage.setItem(`user_avatar_${myId}`, avatarUrl);
+        localStorage.setItem('avatar', avatarUrl);
+      }
+    } catch (_) { /* 静默失败 */ }
+  }
+
   // 监听对方信息弹窗打开，自动加载资料
   watch(showPeerInfo, (val) => {
     if (val) loadPeerProfile();
