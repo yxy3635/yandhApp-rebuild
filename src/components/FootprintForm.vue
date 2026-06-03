@@ -227,8 +227,7 @@ async function loadCityData() {
     } catch (e) {}
   }
   const urls = [
-    '/geojson/china_cities.json',                           // Vite dev (public/geojson/)
-    `${APP_CONFIG.SERVER_BASE}/api/geojson/china_cities.json` // 生产服务器
+    `${APP_CONFIG.SERVER_BASE}/api/geojson/china_cities.json`  // 服务器
   ]
   for (const url of urls) {
     try {
@@ -282,20 +281,43 @@ async function handleSubmit() {
   if (!form.title || !form.location_name) return
   submitting.value = true
 
-  const payload = {
-    user_id: currentUserId.value,
-    title: form.title,
-    location_name: form.location_name,
-    province: form.province,
-    city: form.city,
-    latitude: form.latitude,
-    longitude: form.longitude,
-    visited_date: form.visited_date,
-    description: form.description,
-    images: images.value,
-  }
-
   try {
+    // 先上传新图片（base64 → multipart），已存在的 URL 保持不变
+    const imageUrls = []
+    for (const img of images.value) {
+      if (img.startsWith('data:image/')) {
+        // 新图片：通过 multipart 上传
+        const blob = dataURItoBlob(img)
+        const formData = new FormData()
+        formData.append('user_id', currentUserId.value)
+        formData.append('image', blob, 'footprint.jpg')
+        const uploadResp = await fetch(`${APP_CONFIG.API_BASE}/upload_footprint.php`, {
+          method: 'POST',
+          body: formData,
+        })
+        const uploadData = await uploadResp.json()
+        if (uploadData.success) {
+          imageUrls.push(uploadData.image_url)
+        }
+      } else {
+        // 已有 URL（编辑时）
+        imageUrls.push(img.startsWith(APP_CONFIG.SERVER_BASE) ? img.replace(APP_CONFIG.SERVER_BASE + '/', '') : img)
+      }
+    }
+
+    const payload = {
+      user_id: currentUserId.value,
+      title: form.title,
+      location_name: form.location_name,
+      province: form.province,
+      city: form.city,
+      latitude: form.latitude,
+      longitude: form.longitude,
+      visited_date: form.visited_date,
+      description: form.description,
+      images: imageUrls,
+    }
+
     let data
     if (isEditing.value) {
       payload.id = props.editingFootprint.id
@@ -319,10 +341,21 @@ async function handleSubmit() {
       customAlert(data.message || '操作失败')
     }
   } catch (e) {
-    customAlert('网络错误')
+    console.error('提交足迹失败:', e)
+    customAlert('提交失败: ' + (e.message || '未知错误'))
   } finally {
     submitting.value = false
   }
+}
+
+// base64 data URI → Blob
+function dataURItoBlob(dataURI) {
+  const byteString = atob(dataURI.split(',')[1])
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0]
+  const ab = new ArrayBuffer(byteString.length)
+  const ia = new Uint8Array(ab)
+  for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i)
+  return new Blob([ab], { type: mimeString })
 }
 
 onMounted(async () => {

@@ -3,20 +3,20 @@ import defaultAvatar from '../assets/img/default-avatar.png';
 // 主要的后端配置
 export const APP_CONFIG = {
   // 服务器基础地址
-  SERVER_BASE: 'http://38.207.133.8',
+  SERVER_BASE: '',
   
   // API 接口地址
-  API_BASE: 'http://38.207.133.8/api',
+  API_BASE: '',
   
   // 静态资源地址
-  AVATAR_BASE: 'http://38.207.133.8/',
+  AVATAR_BASE: '',
   
   // GIF 相关地址
-  GIF_BASE: 'http://38.207.133.8/gif/',
-  USER_EMOJI_BASE: 'http://38.207.133.8/gif/user_uploads/',
+  GIF_BASE: '',
+  USER_EMOJI_BASE: '',
   
   // 其他服务地址
-  VERSION_CHECK_URL: 'http://38.207.133.8/appVersionCheck.php'
+  VERSION_CHECK_URL: ''
 };
 
 // 通用网络请求函数

@@ -30,13 +30,26 @@ $file = $_FILES['image'];
 $fileExtension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 $allowTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
-// 检查文件类型
-$finfo = finfo_open(FILEINFO_MIME_TYPE);
-$mimeType = finfo_file($finfo, $file['tmp_name']);
-finfo_close($finfo);
+// 检查文件扩展名
+if (!in_array($fileExtension, $allowTypes)) {
+    echo json_encode(["success" => false, "message" => "不支持的文件类型"]);
+    exit();
+}
 
+// 检查 MIME 类型（兼容未安装 fileinfo 扩展的服务器）
+$mimeType = '';
+if (function_exists('finfo_open')) {
+    $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo) {
+        $mimeType = @finfo_file($finfo, $file['tmp_name']);
+        @finfo_close($finfo);
+    }
+}
+if (empty($mimeType) && function_exists('mime_content_type')) {
+    $mimeType = @mime_content_type($file['tmp_name']);
+}
 $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-if (!in_array($mimeType, $allowedMimes) && !in_array($fileExtension, $allowTypes)) {
+if (!empty($mimeType) && !in_array($mimeType, $allowedMimes)) {
     echo json_encode(["success" => false, "message" => "不支持的文件类型"]);
     exit();
 }
