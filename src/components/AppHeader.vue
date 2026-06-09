@@ -61,9 +61,10 @@ const handleBack = () => {
   width: 100%;
   max-width: 500px;
   height: 64px;
-  /* 磨砂玻璃：background: inherit + filter:blur 兼容所有平台 */
-  background: transparent;
-  overflow: hidden;
+  /* 磨砂玻璃：复用 AiPage 关闭按钮方案，简单直接 */
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -82,36 +83,6 @@ const handleBack = () => {
   animation: headerSlideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 模糊层：使用 body 背景 + filter:blur，再叠加半透明 tint */
-.app-header::before {
-  content: '';
-  position: absolute;
-  inset: -40px;
-  background: #f6f8fa;
-  background-attachment: fixed;
-  filter: blur(48px);
-  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.78);
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-/* 支持 backdrop-filter 的浏览器：真实模糊 + 低透明度（关闭 ::before fallback） */
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  .app-header {
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.72) 0%,
-      rgba(255, 255, 255, 0.55) 100%
-    );
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-  }
-
-  .app-header::before {
-    content: none;
-  }
-}
-
 @keyframes headerSlideDown {
   from {
     opacity: 0;
@@ -124,33 +95,14 @@ const handleBack = () => {
 }
 
 body.dark-theme .app-header {
-  background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(28, 30, 36, 0.74);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04) inset,
     0 4px 24px rgba(0, 0, 0, 0.3),
     0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-body.dark-theme .app-header::before {
-  background: linear-gradient(135deg, #181c24 0%, #23242a 100%);
-  background-attachment: fixed;
-  box-shadow: inset 0 0 0 999px rgba(22, 24, 30, 0.82);
-}
-
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  body.dark-theme .app-header {
-    background: linear-gradient(
-      180deg,
-      rgba(28, 30, 36, 0.74) 0%,
-      rgba(22, 24, 30, 0.58) 100%
-    );
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  body.dark-theme .app-header::before {
-    content: none;
-  }
 }
 
 /* 顶部高光线 */

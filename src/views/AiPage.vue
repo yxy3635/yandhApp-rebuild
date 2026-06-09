@@ -54,15 +54,27 @@
         <div v-if="msg.content" class="ai-bubble" v-html="renderMarkdown(msg.content)"></div>
         <!-- 思考中内联指示器（assistant 消息无内容时显示） -->
         <div v-if="!msg.content && msg.role === 'assistant'" class="ai-thinking-inline">
+          <Transition name="thinking-content" mode="out-in">
+            <span v-if="showEffortMessage" key="effort" class="ai-thinking-effort">叶鱼正在努力思考</span>
+            <span v-else key="normal" class="ai-thinking-content">
           <div class="ai-loader-wrap">
             <div class="ai-loader"></div>
           </div>
           <span class="ai-thinking-label">
             叶鱼思考中
-            <span class="ai-thinking-dots">
-              <i>.</i><i>.</i><i>.</i>
-            </span>
           </span>
+          <Transition v-if="currentVisionStep" name="vision-step" mode="out-in">
+            <span
+              class="ai-vision-step"
+              :key="currentVisionStep._key"
+              :class="{ done: currentVisionStep.status === 'done' }"
+            >
+              <span class="ai-vision-text">{{ currentVisionStep.text }}</span>
+            </span>
+          </Transition>
+          <span v-if="thinkingSeconds >= 5" class="ai-thinking-seconds">{{ thinkingSeconds }}s</span>
+            </span>
+          </Transition>
         </div>
         <div class="ai-images" v-if="msg.images && msg.images.length">
           <img v-for="(img, i) in msg.images" :key="i" :src="img" class="ai-msg-img" @click.stop="previewImage = img" alt="图片" />
@@ -84,20 +96,6 @@
         </div>
       </div>
 
-      <div v-if="visibleSteps.length" class="ai-message assistant">
-        <TransitionGroup name="progress-step" tag="div" class="ai-progress-card">
-          <div class="ai-progress-step"
-               v-for="step in visibleSteps"
-               :key="step._key"
-               :class="{ done: step.status === 'done' }">
-            <span class="ai-progress-icon">
-              <svg v-if="step.status === 'done'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              <span v-else class="ai-progress-ring"></span>
-            </span>
-            <span class="ai-progress-label">{{ step.text }}</span>
-          </div>
-        </TransitionGroup>
-      </div>
     </main>
 
     <div class="ai-preview-overlay" v-if="previewImage" @click="previewImage = null">
@@ -171,6 +169,8 @@ const inputText = ref('')
 const pendingImages = ref([])
 const thinking = ref(false)
 const progressSteps = ref([])  // { text, status: 'done'|'active'|'pending' }
+const thinkingSeconds = ref(0)
+const showEffortMessage = ref(false)
 const previewImage = ref(null)
 const chatListRef = ref(null)
 const inputRef = ref(null)
@@ -328,16 +328,79 @@ function newChat() {
 let _progressKey = 0
 let _typewriterTimers = []
 let _leaveTimers = []
+let _thinkingTimer = null
+let _progressQueue = Promise.resolve()
+let _effortTimer = null
+let _effortReturnTimer = null
 
 const visibleSteps = ref([])
+const currentVisionStep = ref(null)
+
+function startThinkingTimer() {
+  if (_thinkingTimer) clearInterval(_thinkingTimer)
+  if (_effortTimer) clearTimeout(_effortTimer)
+  if (_effortReturnTimer) clearTimeout(_effortReturnTimer)
+  thinkingSeconds.value = 0
+  showEffortMessage.value = false
+  const startedAt = Date.now()
+  _thinkingTimer = setInterval(() => {
+    thinkingSeconds.value = Math.floor((Date.now() - startedAt) / 1000)
+  }, 250)
+  _effortTimer = setTimeout(() => {
+    showEffortMessage.value = true
+    _effortReturnTimer = setTimeout(() => {
+      showEffortMessage.value = false
+    }, 1800)
+  }, 8000)
+}
+
+function stopThinkingTimer() {
+  if (_thinkingTimer) {
+    clearInterval(_thinkingTimer)
+    _thinkingTimer = null
+  }
+  if (_effortTimer) {
+    clearTimeout(_effortTimer)
+    _effortTimer = null
+  }
+  if (_effortReturnTimer) {
+    clearTimeout(_effortReturnTimer)
+    _effortReturnTimer = null
+  }
+  thinkingSeconds.value = 0
+  showEffortMessage.value = false
+}
+
+function delay(ms) {
+  return new Promise(resolve => {
+    _leaveTimers.push(setTimeout(resolve, ms))
+  })
+}
+
+async function showVisionStep(text, status = 'active', hold = 620) {
+  const step = {
+    _key: ++_progressKey,
+    text,
+    status
+  }
+  currentVisionStep.value = step
+  scrollToBottom()
+  await delay(hold)
+  if (currentVisionStep.value === step) {
+    currentVisionStep.value = null
+  }
+  await delay(260)
+}
 
 function clearProgress() {
   _typewriterTimers.forEach(t => clearInterval(t))
   _typewriterTimers = []
   _leaveTimers.forEach(t => clearTimeout(t))
   _leaveTimers = []
+  _progressQueue = Promise.resolve()
   progressSteps.value = []
   visibleSteps.value = []
+  currentVisionStep.value = null
 }
 
 // 将当前 active 步骤标记完成，并在短暂停留后移除（TransitionGroup 负责离场动画）
@@ -350,10 +413,13 @@ function _finishCurrentStep(doneText) {
   // 显示绿勾 0.7s，然后从列表移除触发 TransitionGroup leave 动画
   const step = active
   _leaveTimers.push(setTimeout(() => {
+    step.status = 'leaving'
+  }, 760))
+  _leaveTimers.push(setTimeout(() => {
     const idx = visibleSteps.value.indexOf(step)
     if (idx >= 0) visibleSteps.value.splice(idx, 1)
     scrollToBottom()
-  }, 700))
+  }, 1080))
 }
 
 function addProgressStep(text) {
@@ -367,19 +433,9 @@ function addProgressStep(text) {
     status: 'active'
   })
   visibleSteps.value.push(step)
+  step.text = text
   scrollToBottom()
-
-  // 打字机效果
-  let i = 0
-  const timer = setInterval(() => {
-    if (i < text.length) {
-      step.text = text.slice(0, ++i)
-      scrollToBottom()
-    } else {
-      clearInterval(timer)
-    }
-  }, 40)
-  _typewriterTimers.push(timer)
+  _progressQueue = _progressQueue.then(() => showVisionStep(text, 'active', 720))
 
   return step
 }
@@ -538,6 +594,7 @@ async function sendMessage() {
 
   // 先展示思考动画
   thinking.value = true
+  startThinkingTimer()
   messages.value.push({ role: 'assistant', content: '' })
   scrollToBottom()
 
@@ -558,6 +615,7 @@ async function sendMessage() {
       const assistantMsg = messages.value[messages.value.length - 1]
       assistantMsg.content = '图片上传失败：' + (e.message || '网络错误')
       thinking.value = false
+      stopThinkingTimer()
       return
     }
   }
@@ -682,6 +740,7 @@ async function sendMessage() {
     }
   } finally {
     thinking.value = false
+    stopThinkingTimer()
     clearProgress()
     scrollToBottom()
     saveCurrentSession()
@@ -1024,6 +1083,16 @@ body.dark-theme .ai-progress-step.done {
   border-radius: 18px;
   border-bottom-left-radius: 6px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  width: max-content;
+  max-width: calc(100vw - 36px);
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ai-thinking-inline::-webkit-scrollbar {
+  display: none;
 }
 
 body.dark-theme .ai-thinking-inline {
@@ -1525,5 +1594,126 @@ body.dark-theme .ai-input {
 
 .ai-send-btn:active:not(:disabled) { transform: scale(0.95); }
 .ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ai-vision-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  min-width: max-content;
+  height: 20px;
+  margin-left: -4px;
+  padding-left: 10px;
+  overflow: visible;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+.ai-vision-step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: -4px;
+  color: rgba(99, 102, 122, 0.82);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  width: max-content;
+  will-change: opacity, transform, filter;
+}
+
+body.dark-theme .ai-vision-step {
+  color: rgba(216, 220, 230, 0.74);
+}
+
+.ai-vision-step.done {
+  color: rgba(52, 199, 89, 0.9);
+}
+
+.ai-vision-text {
+  position: relative;
+  display: inline-block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  animation: visionTextBreathe 1.8s ease-in-out infinite;
+}
+
+.ai-thinking-seconds {
+  margin-left: -4px;
+  color: rgba(99, 102, 122, 0.72);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+}
+
+body.dark-theme .ai-thinking-seconds {
+  color: rgba(216, 220, 230, 0.68);
+}
+
+.ai-thinking-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.ai-thinking-effort {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  color: rgba(99, 102, 122, 0.9);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+body.dark-theme .ai-thinking-effort {
+  color: rgba(232, 235, 240, 0.88);
+}
+
+.thinking-content-enter-active,
+.thinking-content-leave-active {
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.thinking-content-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.thinking-content-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.vision-step-enter-active {
+  animation: visionStepIn 0.28s ease-out both;
+}
+
+.vision-step-leave-active {
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.vision-step-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@keyframes visionStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes visionTextBreathe {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 0.92; }
+}
 
 </style>
