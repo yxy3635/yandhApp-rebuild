@@ -84,19 +84,26 @@
         </div>
       </div>
 
-      <div v-if="ocrProgress" class="ai-message assistant">
-        <div class="ai-ocr-bubble">
-          <div class="ai-thinking-dots-inline">
-            <span class="ai-thinking-dot"></span>
-            <span class="ai-thinking-dot"></span>
-            <span class="ai-thinking-dot"></span>
+      <div v-if="visibleSteps.length" class="ai-message assistant">
+        <TransitionGroup name="progress-step" tag="div" class="ai-progress-card">
+          <div class="ai-progress-step"
+               v-for="step in visibleSteps"
+               :key="step._key"
+               :class="{ done: step.status === 'done' }">
+            <span class="ai-progress-icon">
+              <svg v-if="step.status === 'done'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span v-else class="ai-progress-ring"></span>
+            </span>
+            <span class="ai-progress-label">{{ step.text }}</span>
           </div>
-          <span class="ai-ocr-text">{{ ocrProgress }}</span>
-        </div>
+        </TransitionGroup>
       </div>
     </main>
 
     <div class="ai-preview-overlay" v-if="previewImage" @click="previewImage = null">
+      <button class="ai-preview-close" @click.stop="previewImage = null" title="关闭">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <img :src="previewImage" class="ai-preview-img" @click.stop />
     </div>
 
@@ -134,9 +141,8 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, nextTick, onMounted, onBeforeUnmount, onActivated, onDeactivated, watch } from 'vue'
 import { APP_CONFIG, commonFetch } from '../utils/config'
-import Tesseract from 'tesseract.js'
 import { marked } from 'marked'
 import hljs from 'highlight.js/lib/common'
 import 'highlight.js/styles/github.css'
@@ -164,7 +170,7 @@ const messages = ref([])
 const inputText = ref('')
 const pendingImages = ref([])
 const thinking = ref(false)
-const ocrProgress = ref('')
+const progressSteps = ref([])  // { text, status: 'done'|'active'|'pending' }
 const previewImage = ref(null)
 const chatListRef = ref(null)
 const inputRef = ref(null)
@@ -172,6 +178,15 @@ const showHistory = ref(false)
 const currentSessionId = ref(null)
 
 const sessions = ref([])
+
+// AbortController：用于在页面真正销毁时中断请求，但 KeepAlive 切换页面时不中断
+let abortController = null
+function getAbortSignal() {
+  // 如果已有未完成的请求，先中断旧的
+  if (abortController) abortController.abort()
+  abortController = new AbortController()
+  return abortController.signal
+}
 
 onMounted(() => {
   loadSessions()
@@ -194,6 +209,16 @@ onMounted(() => {
   }
 })
 
+// KeepAlive：切走页面时保存会话，但不中断请求
+onDeactivated(() => {
+  saveCurrentSession()
+})
+
+// KeepAlive：切回来时滚动到底部
+onActivated(() => {
+  nextTick(() => scrollToBottom())
+})
+
 let _aiViewportTimer = null
 function onViewportChange() {
   if (_aiViewportTimer) clearTimeout(_aiViewportTimer)
@@ -204,6 +229,11 @@ function onInputFocus() {
 }
 
 onBeforeUnmount(() => {
+  // 真正销毁时中断所有未完成的请求
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
   if (window.visualViewport) {
     window.visualViewport.removeEventListener('resize', onViewportChange)
     window.visualViewport.removeEventListener('scroll', onViewportChange)
@@ -244,7 +274,8 @@ function saveCurrentSession() {
     id,
     title,
     date: new Date().toISOString(),
-    messages: [...messages.value]
+    // 不存储 base64 图片（太大，会撑爆 localStorage），只保留文字内容
+    messages: messages.value.map(m => ({ role: m.role, content: m.content }))
   }
 
   loadSessions()
@@ -292,6 +323,71 @@ function newChat() {
   showHistory.value = false
 }
 
+// ====== Grok 式进度步骤管理 ======
+
+let _progressKey = 0
+let _typewriterTimers = []
+let _leaveTimers = []
+
+const visibleSteps = ref([])
+
+function clearProgress() {
+  _typewriterTimers.forEach(t => clearInterval(t))
+  _typewriterTimers = []
+  _leaveTimers.forEach(t => clearTimeout(t))
+  _leaveTimers = []
+  progressSteps.value = []
+  visibleSteps.value = []
+}
+
+// 将当前 active 步骤标记完成，并在短暂停留后移除（TransitionGroup 负责离场动画）
+function _finishCurrentStep(doneText) {
+  const active = visibleSteps.value.find(s => s.status === 'active')
+  if (!active) return
+  active._doneText = doneText || active._fullText || active.text
+  active.text = active._doneText
+  active.status = 'done'
+  // 显示绿勾 0.7s，然后从列表移除触发 TransitionGroup leave 动画
+  const step = active
+  _leaveTimers.push(setTimeout(() => {
+    const idx = visibleSteps.value.indexOf(step)
+    if (idx >= 0) visibleSteps.value.splice(idx, 1)
+    scrollToBottom()
+  }, 700))
+}
+
+function addProgressStep(text) {
+  _finishCurrentStep()  // 先完成上一步
+
+  const step = reactive({
+    _key: ++_progressKey,
+    _fullText: text,
+    _doneText: '',
+    text: '',
+    status: 'active'
+  })
+  visibleSteps.value.push(step)
+  scrollToBottom()
+
+  // 打字机效果
+  let i = 0
+  const timer = setInterval(() => {
+    if (i < text.length) {
+      step.text = text.slice(0, ++i)
+      scrollToBottom()
+    } else {
+      clearInterval(timer)
+    }
+  }, 40)
+  _typewriterTimers.push(timer)
+
+  return step
+}
+
+function completeProgressStep(text) {
+  _finishCurrentStep(text)
+}
+
 function autoResize() {
   const el = inputRef.value
   if (!el) return
@@ -299,13 +395,12 @@ function autoResize() {
   el.style.height = Math.min(el.scrollHeight, 120) + 'px'
 }
 
-function onImagesSelected(e) {
+async function onImagesSelected(e) {
   const files = Array.from(e.target.files || [])
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue
-    resizeImageForUpload(file).then(dataUrl => {
-      pendingImages.value.push(dataUrl)
-    })
+    const dataUrl = await resizeImageForUpload(file)
+    pendingImages.value.push(dataUrl)
   }
   e.target.value = ''
 }
@@ -385,177 +480,6 @@ function scrollToBottom() {
 }
 
 /**
- * OCR 图片预处理：Canvas 多阶段管道
- * 降噪 → 放大 → 灰度 → Unsharp Mask → Otsu 二值化 → 暗色检测反色
- */
-function preprocessImage(dataUrl) {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const w = img.naturalWidth
-      const h = img.naturalHeight
-
-      // 确保短边至少 1600px，Tesseract 对低清图片几乎无法识别中文
-      const minDim = Math.min(w, h)
-      const scale = Math.max(1, 1600 / minDim)
-      const sw = Math.round(w * scale)
-      const sh = Math.round(h * scale)
-
-      const canvas = document.createElement('canvas')
-      canvas.width = sw
-      canvas.height = sh
-      const ctx = canvas.getContext('2d')
-
-      ctx.fillStyle = '#fff'
-      ctx.fillRect(0, 0, sw, sh)
-      ctx.imageSmoothingEnabled = true
-      ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(img, 0, 0, sw, sh)
-
-      const src = ctx.getImageData(0, 0, sw, sh)
-      const gray = new Float32Array(sw * sh)
-
-      // 1) 灰度化
-      for (let i = 0; i < src.data.length; i += 4) {
-        gray[i / 4] = 0.299 * src.data[i] + 0.587 * src.data[i + 1] + 0.114 * src.data[i + 2]
-      }
-
-      // 2) 3×3 中值滤波去噪（保护文字笔画不被高斯模糊抹掉）
-      const denoised = new Float32Array(sw * sh)
-      denoised[0] = gray[0]
-      for (let y = 1; y < sh - 1; y++) {
-        for (let x = 1; x < sw - 1; x++) {
-          const wnd = []
-          for (let dy = -1; dy <= 1; dy++)
-            for (let dx = -1; dx <= 1; dx++)
-              wnd.push(gray[(y + dy) * sw + (x + dx)])
-          wnd.sort((a, b) => a - b)
-          denoised[y * sw + x] = wnd[4]
-        }
-      }
-      // 边界直接拷贝
-      for (let y = 0; y < sh; y++) {
-        denoised[y * sw] = gray[y * sw]
-        denoised[y * sw + sw - 1] = gray[y * sw + sw - 1]
-      }
-      for (let x = 0; x < sw; x++) {
-        denoised[x] = gray[x]
-        denoised[(sh - 1) * sw + x] = gray[(sh - 1) * sw + x]
-      }
-
-      // 3) Unsharp Masking：原图 + 强度 × (原图 - 模糊)，文字边缘更锋利
-      const sharp = new Float32Array(sw * sh)
-      const blurR = 3
-      for (let y = 0; y < sh; y++) {
-        for (let x = 0; x < sw; x++) {
-          let sum = 0, cnt = 0
-          for (let dy = -blurR; dy <= blurR; dy++) {
-            for (let dx = -blurR; dx <= blurR; dx++) {
-              const nx = x + dx, ny = y + dy
-              if (nx >= 0 && nx < sw && ny >= 0 && ny < sh) {
-                sum += denoised[ny * sw + nx]
-                cnt++
-              }
-            }
-          }
-          const v = denoised[y * sw + x] + 1.8 * (denoised[y * sw + x] - sum / cnt)
-          sharp[y * sw + x] = Math.max(0, Math.min(255, v))
-        }
-      }
-
-      // 4) Otsu 全局最优阈值
-      const hist = new Uint32Array(256)
-      const total = sw * sh
-      for (let i = 0; i < total; i++) hist[Math.round(sharp[i])]++
-
-      let otsuT = 128, best = 0
-      let w0 = 0, sum0 = 0
-      const sumAll = (() => { let s = 0; for (let i = 0; i < 256; i++) s += i * hist[i]; return s })()
-      for (let t = 0; t < 256; t++) {
-        w0 += hist[t]
-        sum0 += t * hist[t]
-        const w1 = total - w0
-        if (w0 === 0 || w1 === 0) continue
-        const m0 = sum0 / w0
-        const m1 = (sumAll - sum0) / w1
-        const vb = w0 * w1 * (m0 - m1) * (m0 - m1)
-        if (vb > best) { best = vb; otsuT = t }
-      }
-
-      // 5) 二值化 + 暗色模式检测：如果超过 55% 像素在阈值以下是暗色，整体反色
-      let darkCount = 0
-      for (let i = 0; i < total; i++) {
-        if (sharp[i] < otsuT) darkCount++
-      }
-      const invert = darkCount > total * 0.55
-
-      const dst = ctx.createImageData(sw, sh)
-      for (let i = 0, j = 0; i < dst.data.length; i += 4, j++) {
-        let bin = sharp[j] < otsuT ? 0 : 255
-        if (invert) bin = 255 - bin
-        dst.data[i] = bin
-        dst.data[i + 1] = bin
-        dst.data[i + 2] = bin
-        dst.data[i + 3] = 255
-      }
-      ctx.putImageData(dst, 0, 0)
-
-      resolve(canvas.toDataURL('image/png'))
-    }
-    img.src = dataUrl
-  })
-}
-
-/**
- * 对预处理后的图片做双 pass OCR，取更可信的结果
- * Pass A: PSM 3 (全自动)  |  Pass B: PSM 6 (统一文本块)
- * 选择中文字符占比更高的结果
- */
-async function ocrWithBestPsm(imgDataUrl) {
-  const configs = [
-    { psm: '3', label: 'auto' },
-    { psm: '6', label: 'block' },
-  ]
-
-  let bestText = ''
-  let bestScore = -1
-
-  for (const cfg of configs) {
-    try {
-      const result = await Tesseract.recognize(imgDataUrl, 'chi_sim+eng', {
-        tessedit_pageseg_mode: cfg.psm,
-      })
-      const text = result.data.text.trim()
-      if (!text) continue
-
-      // 评分：中文字符 + 常见标点占比越高越好，偏向长文本但惩罚全是乱码的
-      const chineseCount = (text.match(/[一-鿿　-〿＀-￯]/g) || []).length
-      const junkCount = (text.match(/[^\x20-\x7e一-鿿　-〿＀-￯\s]/g) || []).length
-      const score = chineseCount * 2 + text.length - junkCount * 5
-
-      if (score > bestScore) {
-        bestScore = score
-        bestText = text
-      }
-    } catch {
-      // 单个 pass 失败，试下一个
-    }
-  }
-
-  // 如果双 pass 都失败，回退到默认 PSM 3
-  if (!bestText) {
-    try {
-      const fallback = await Tesseract.recognize(imgDataUrl, 'chi_sim+eng')
-      bestText = fallback.data.text.trim()
-    } catch {
-      bestText = ''
-    }
-  }
-
-  return bestText
-}
-
-/**
  * 将 base64 data URL 转为 Blob，用于 multipart 上传
  */
 function dataUrlToBlob(dataUrl) {
@@ -572,7 +496,7 @@ function dataUrlToBlob(dataUrl) {
 /**
  * 上传单张图片到服务器，返回公开 URL
  */
-async function uploadImageToServer(dataUrl) {
+async function uploadImageToServer(dataUrl, signal) {
   const blob = dataUrlToBlob(dataUrl)
   const formData = new FormData()
   formData.append('image', blob, 'image.' + (blob.type === 'image/png' ? 'png' : 'jpg'))
@@ -580,6 +504,7 @@ async function uploadImageToServer(dataUrl) {
   const resp = await fetch(`${APP_CONFIG.API_BASE}/upload_ai_image.php`, {
     method: 'POST',
     body: formData,
+    signal,
   })
   const result = await resp.json()
   if (!result.success) {
@@ -592,6 +517,9 @@ async function sendMessage() {
   const text = inputText.value.trim()
   if (!text && !pendingImages.value.length) return
   if (thinking.value) return
+
+  const signal = getAbortSignal()
+  clearProgress()
 
   const localImages = [...pendingImages.value]
   const userMsg = {
@@ -616,53 +544,73 @@ async function sendMessage() {
   // 第一步：上传图片到服务器，获取可公开访问的 URL
   let uploadedUrls = []
   if (localImages.length) {
-    ocrProgress.value = '正在上传图片...'
+    addProgressStep(localImages.length > 1 ? `上传 ${localImages.length} 张图片` : '上传图片')
     scrollToBottom()
     try {
       for (let i = 0; i < localImages.length; i++) {
-        ocrProgress.value = `正在上传图片 (${i + 1}/${localImages.length})...`
-        const url = await uploadImageToServer(localImages[i])
+        const url = await uploadImageToServer(localImages[i], signal)
         uploadedUrls.push(url)
       }
+      completeProgressStep('图片上传完成')
     } catch (e) {
+      if (e.name === 'AbortError') return
+      completeProgressStep('图片上传失败')
       const assistantMsg = messages.value[messages.value.length - 1]
       assistantMsg.content = '图片上传失败：' + (e.message || '网络错误')
       thinking.value = false
-      ocrProgress.value = ''
       return
     }
   }
 
-  // 第二步：本地 OCR 识别图片文字（预处理 + 双 PSM 优选）
+  // 第二步：通过硅基流动视觉模型理解图片内容
   let ocrText = ''
+  let ocrFailed = false
   if (localImages.length) {
-    ocrProgress.value = '正在预处理图片...'
+    addProgressStep(localImages.length > 1 ? `理解 ${localImages.length} 张图片内容` : '理解图片内容')
     scrollToBottom()
     try {
       const ocrResults = []
       for (let i = 0; i < localImages.length; i++) {
-        ocrProgress.value = `正在预处理图片 (${i + 1}/${localImages.length})...`
-        const preprocessed = await preprocessImage(localImages[i])
-
-        ocrProgress.value = `正在识别文字 (${i + 1}/${localImages.length})...`
-        const words = await ocrWithBestPsm(preprocessed)
-        if (words) ocrResults.push(words)
+        const ocrBody = uploadedUrls[i]
+          ? { image_url: uploadedUrls[i] }
+          : { image: localImages[i] }
+        const resp = await fetch(`${APP_CONFIG.API_BASE}/ocr_siliconflow.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ocrBody),
+          signal,
+        })
+        const result = await resp.json()
+        console.log(`[视觉] 图片${i+1}:`, result.success ? '成功' : '失败', result.message || '', result.text ? `(${result.text.length}字)` : '')
+        if (result.success && result.text) {
+          ocrResults.push(result.text)
+        }
       }
       if (ocrResults.length) {
         ocrText = ocrResults.join('\n---\n')
+        completeProgressStep(`图片理解完成（${ocrText.length} 字）`)
+        console.log('[视觉] 全部完成，总字数:', ocrText.length)
+      } else {
+        completeProgressStep('图片中未检测到内容')
+        ocrFailed = true
+        console.warn('[视觉] 所有图片均未能理解')
       }
-    } catch {
-      // OCR 失败，继续发送消息
+    } catch (e) {
+      if (e.name === 'AbortError') return
+      completeProgressStep('图片理解失败')
+      ocrFailed = true
+      console.error('[视觉] 请求异常:', e)
     }
-    ocrProgress.value = ''
   }
 
-  // 构建最终消息文本
+  // 构建最终消息文本（附图片描述供 AI 理解）
   let finalMessage = text
   if (ocrText) {
     finalMessage = text
-      ? text + '\n\n【以下是从图片中识别出的文字内容】\n' + ocrText
-      : '【以下是从图片中识别出的文字内容】\n' + ocrText
+      ? text + '\n\n【以下是对用户发送图片的内容描述（由视觉模型生成）】\n' + ocrText
+      : '【以下是对用户发送图片的内容描述（由视觉模型生成）】\n' + ocrText
+  } else if (ocrFailed && text) {
+    finalMessage = text + '\n\n（用户发了一张图片，但暂时无法分析图片内容。如果用户问图片相关的问题，请让用户用文字描述图片内容。）'
   }
 
   const assistantMsg = messages.value[messages.value.length - 1]
@@ -675,7 +623,8 @@ async function sendMessage() {
         message: finalMessage,
         images: uploadedUrls,
         history: messages.value.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
-      })
+      }),
+      signal,
     })
 
     if (!resp.ok) {
@@ -726,12 +675,14 @@ async function sendMessage() {
         } catch {}
       }
     }
-  } catch {
+  } catch (e) {
+    if (e.name === 'AbortError') return
     if (!assistantMsg.content) {
       assistantMsg.content = '网络错误，请检查网络连接后重试'
     }
   } finally {
     thinking.value = false
+    clearProgress()
     scrollToBottom()
     saveCurrentSession()
   }
@@ -967,27 +918,100 @@ body.dark-theme .ai-message.assistant .ai-bubble {
   color: #e0e0e0;
 }
 
-/* OCR 进度提示 */
-.ai-ocr-bubble {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+/* Grok 式进度步骤卡片 */
+.ai-progress-card {
+  padding: 12px 18px;
   background: var(--bg-color-card, #fff);
   border-radius: 18px;
   border-bottom-left-radius: 6px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  font-size: 13px;
-  color: var(--text-color-medium, #888);
+  overflow: hidden;
 }
 
-body.dark-theme .ai-ocr-bubble {
+body.dark-theme .ai-progress-card {
   background: #3a404b;
 }
 
-.ai-ocr-text {
-  font-size: 13px;
+.ai-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-color-light, #333);
+}
+
+body.dark-theme .ai-progress-step {
+  color: #e0e0e0;
+}
+
+/* 完成状态：文字颜色稍微变淡，显示绿勾 */
+.ai-progress-step.done {
   color: var(--text-color-medium, #888);
+}
+
+body.dark-theme .ai-progress-step.done {
+  color: #999;
+}
+
+/* ===== Vu e TransitionGroup 动画 ===== */
+
+/* 入场：从下方滑入 + 淡入 */
+.progress-step-enter-active {
+  transition: all 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.progress-step-enter-from {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+/* 离场：向上滑出 + 淡出 */
+.progress-step-leave-active {
+  transition: all 0.3s ease-in;
+}
+
+.progress-step-leave-to {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+
+/* ===== 图标 ===== */
+
+.ai-progress-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-progress-icon svg {
+  animation: checkPop 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2);
+}
+
+@keyframes checkPop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 进行中的旋转环 */
+.ai-progress-ring {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 122, 255, 0.2);
+  border-top-color: #007aff;
+  border-radius: 50%;
+  animation: ringSpin 0.8s linear infinite;
+}
+
+@keyframes ringSpin {
+  to { transform: rotate(360deg); }
+}
+
+.ai-progress-label {
+  line-height: 1.4;
 }
 
 /* 思考中内联指示器 */
@@ -1357,6 +1381,29 @@ body.dark-theme .ai-file-hint {
   border-radius: 12px;
   object-fit: contain;
   cursor: default;
+}
+
+.ai-preview-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2001;
+  transition: background 0.2s;
+  backdrop-filter: blur(4px);
+}
+
+.ai-preview-close:hover {
+  background: rgba(255,255,255,0.3);
 }
 
 .ai-footer {

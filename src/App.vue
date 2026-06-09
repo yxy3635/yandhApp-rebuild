@@ -1,7 +1,7 @@
 <template>
   <router-view v-slot="{ Component, route: r }">
     <transition :name="pageTransition" mode="out-in" @after-leave="resetPageTransition">
-      <keep-alive include="Home">
+      <keep-alive include="Home,AiPage">
         <component :is="Component" :key="r.path" />
       </keep-alive>
     </transition>
